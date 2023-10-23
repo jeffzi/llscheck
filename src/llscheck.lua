@@ -83,20 +83,10 @@ local function print_summary(warnings, errors, files)
    print(string.format("Total: %s warnings / %s errors in %s files", warn_count, err_count, files))
 end
 
-local function main()
-   local parser = argparse(
-      "llscheck",
-      "Convert Lua Language Server diagnostics for human and CI friendly interpretation."
-   )
-   parser:argument("report", "LuaLS JSON Diagnosis Report")
-   local args = parser:parse()
-   local path = args.report
-   check_file(path)
-
-   local file = assert(io.open(args.report, "r"))
-   local content = file:read("*a")
-   file:close()
-   local data = cjson.decode(content)
+---Print human-friendly LuaLS diagnosis report
+---@param raw_diagnosis string
+local function print_report(raw_diagnosis)
+   local data = cjson.decode(raw_diagnosis)
 
    local current_dir = lfs.currentdir()
    local errors = 0
@@ -122,6 +112,22 @@ local function main()
    if total_diagnostics > 0 then
       os.exit(1)
    end
+end
+local function main()
+   local parser = argparse(
+      "llscheck",
+      "Convert Lua Language Server diagnostics for human and CI friendly interpretation."
+   )
+   parser:argument("report", "LuaLS JSON Diagnosis Report")
+   local args = parser:parse()
+   local path = args.report
+   check_file(path)
+
+   local file = assert(io.open(args.report, "r"))
+   local raw_diagnosis = file:read("*a")
+   file:close()
+
+   print_report(raw_diagnosis)
 end
 
 main()
