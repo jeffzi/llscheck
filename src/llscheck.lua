@@ -1,7 +1,7 @@
+local ansicolors = require("ansicolors")
 local argparse = require("argparse")
 local cjson = require("cjson")
-local colors = require("ansicolors")
-local lfs = require("lfs")
+local path = require("pl.path")
 
 ---@enum Severity
 local Severity = {
@@ -11,48 +11,76 @@ local Severity = {
    Hint = 4,
 }
 
+---@param message string
+---@param color string
+---@return string
+local function colorize(message, color)
+   local txt = "%" .. string.format("{%s}%s", color, message)
+   return ansicolors(txt)
+end
+
 ---Colorize message depending on the severity.
 ---@param message any
 ---@param severity Severity
 ---@return string
 local function colorize_severity(message, severity)
+   local color
    if severity == Severity.Error then
-      return colors("%{red}" .. message)
+      color = "red"
    elseif severity == Severity.Warning then
-      return colors("%{yellow}" .. message)
+      color = "yellow"
    else
-      return colors("%{white}" .. message)
+      color = "white"
    end
+   return colorize(message, color)
 end
 
----Return True if the file exists.
----@param path string
----@return boolean?
-local function file_exists(path)
-   local file = io.open(path, "r")
-   return file ~= nil and io.close(file)
+---Parse a LuaLS diagnosis report check.json file.
+---@param filepath string
+---@return table
+local function read_diagnosis(filepath)
+   local file = assert(io.open(filepath, "r"))
+   local raw_diagnosis = file:read("*a")
+   file:close()
+   return cjson.decode(raw_diagnosis)
 end
 
----Exit the program if the file doesn't exist.
----@param path string
----@return boolean?
-local function check_file(path)
-   if not file_exists(path) then
-      local msg = string.format("%s does not exist!", path)
-      print(colors("%{red}" .. msg))
-      os.exit(1)
+---Run `lua-language-server --check` for each source file in files.
+---@param files table A list of source files (or directories) to check.
+---@param checklevel string One of: Error, Warning, Information, Hint
+---@return table A list of parsed diagnosis report (check.json).
+local function luals_check(files, checklevel)
+   local diagnosis = {}
+   local logpath = path.tmpname()
+   local diagnosis_path = path.join(logpath, "check.json")
+   for _, src_file in ipairs(files) do
+      local lls_cmd = (
+         string.format(
+            "lua-language-server --check %s --checklevel=%s --logpath=%s",
+            src_file,
+            checklevel,
+            logpath
+         )
+      )
+      io.popen(lls_cmd)
+      if path.exists(diagnosis_path) then
+         local partial_diagnosis = read_diagnosis(diagnosis_path)
+         table.insert(diagnosis, partial_diagnosis)
+         os.remove(diagnosis_path)
+      end
    end
+   return diagnosis
 end
 
----Print a LuaLS diagnostic
----@param file_path string
+---Print human-friendly LuaLS diagnosis report (1 line).
+---@param filepath string
 ---@param diagnostic table
-local function print_diagnostic(file_path, diagnostic)
-   local colon = colors("%{ white dim}:")
-   local dash = colors("%{ white dim}-")
+local function print_diagnostic(filepath, diagnostic)
+   local colon = colorize(":", "white dim")
+   local dash = colorize("-", "white dim")
    local loc = string.format(
       "%s%s%d%s%d%s%d",
-      colors("%{blue}" .. file_path .. "%{reset}"),
+      colorize(filepath, "blue"),
       colon,
       diagnostic.range.start.line,
       colon,
@@ -77,57 +105,57 @@ end
 ---@param errors integer Number of errors
 ---@param files integer Number of files containing diagnostics
 local function print_summary(warnings, errors, files)
-   local zero_count = colors("%{green} 0")
+   local zero_count = colorize("0", "green")
    local warn_count = warnings > 0 and colorize_severity(warnings, Severity.Warning) or zero_count
    local err_count = errors > 0 and colorize_severity(errors, Severity.Error) or zero_count
    print(string.format("Total: %s warnings / %s errors in %s files", warn_count, err_count, files))
 end
 
----Print human-friendly LuaLS diagnosis report
----@param raw_diagnosis string
-local function print_report(raw_diagnosis)
-   local data = cjson.decode(raw_diagnosis)
-
-   local current_dir = lfs.currentdir()
+---Print a human-friendly LuaLS diagnosis report.
+---@param raw_reports table Array of parsed diagnosis reports (check.json files).
+local function print_report(raw_reports)
    local errors = 0
    local warnings = 0
    local files = 0
    local total_diagnostics = 0
-
-   for file_path, diagnostics in pairs(data) do
-      files = files + 1
-      file_path = file_path:gsub("file://" .. current_dir .. "/", "")
-      for _, diagnostic in ipairs(diagnostics) do
-         print_diagnostic(file_path, diagnostic)
-         if diagnostic.severity == Severity.Error then
-            errors = errors + 1
-         elseif diagnostic.severity == Severity.Warning then
-            warnings = warnings + 1
+   for _, raw_report in ipairs(raw_reports) do
+      for filepath, diagnostics in pairs(raw_report) do
+         files = files + 1
+         filepath = filepath:gsub("file://", "")
+         filepath = path.relpath(filepath)
+         for _, diagnostic in ipairs(diagnostics) do
+            print_diagnostic(filepath, diagnostic)
+            if diagnostic.severity == Severity.Error then
+               errors = errors + 1
+            elseif diagnostic.severity == Severity.Warning then
+               warnings = warnings + 1
+            end
+            total_diagnostics = total_diagnostics + 1
          end
-         total_diagnostics = total_diagnostics + 1
       end
    end
 
    print_summary(warnings, errors, files)
-   if total_diagnostics > 0 then
+   return total_diagnostics
+end
+
+local function main()
+   local desc = "Generate a LuaLS diagnosis report and print to human-friendly format."
+   local parser = argparse("llscheck", desc):add_complete()
+   parser:argument("files", "List of files and directories to check."):args("+")
+   parser
+      :option("--checklevel")
+      :choices({ "Error", "Warning", "Information", "Hint" })
+      :default("Warning")
+
+   local args = parser:parse()
+
+   local raw_reports = luals_check(args.files, args.checklevel)
+   local diagnostics = print_report(raw_reports)
+
+   if diagnostics then
       os.exit(1)
    end
-end
-local function main()
-   local parser = argparse(
-      "llscheck",
-      "Convert Lua Language Server diagnostics for human and CI friendly interpretation."
-   )
-   parser:argument("report", "LuaLS JSON Diagnosis Report")
-   local args = parser:parse()
-   local path = args.report
-   check_file(path)
-
-   local file = assert(io.open(args.report, "r"))
-   local raw_diagnosis = file:read("*a")
-   file:close()
-
-   print_report(raw_diagnosis)
 end
 
 main()
