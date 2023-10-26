@@ -116,7 +116,11 @@ local function print_summary(warnings, errors, files)
    local zero_count = colorize("0", "green")
    local warn_count = warnings > 0 and colorize_severity(warnings, Severity.Warning) or zero_count
    local err_count = errors > 0 and colorize_severity(errors, Severity.Error) or zero_count
-   print(string.format("Total: %s warnings / %s errors in %s files", warn_count, err_count, files))
+   local msg = string.format("Total: %s warnings / %s errors", warn_count, err_count)
+   if files > 0 then
+      msg = string.format("%s in %s files", msg, files)
+   end
+   print(msg)
 end
 
 ---Compare diagnostic lines for sorting
