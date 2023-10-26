@@ -167,7 +167,7 @@ local function main()
    local raw_reports = luals_check(args.files, args.checklevel)
    local diagnostics = print_report(raw_reports)
 
-   if diagnostics then
+   if diagnostics > 0 then
       os.exit(1)
    end
 end
