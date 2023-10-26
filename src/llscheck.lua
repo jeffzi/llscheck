@@ -139,10 +139,24 @@ local function print_report(raw_reports)
    return total_diagnostics
 end
 
+---Validate that filepath exists
+---@param filepath string
+---@return string? Validated filepath
+---@return string Error message
+local function validate_file(filepath)
+   if not path.exists(filepath) then
+      return nil, string.format("'%s': No such file or directory", filepath)
+   end
+   return filepath
+end
+
 local function main()
    local desc = "Generate a LuaLS diagnosis report and print to human-friendly format."
    local parser = argparse("llscheck", desc):add_complete()
-   parser:argument("files", "List of files and directories to check."):args("+")
+   parser
+      :argument("files", "List of files and directories to check.")
+      :args("+")
+      :convert(validate_file)
    parser
       :option("--checklevel")
       :choices({ "Error", "Warning", "Information", "Hint" })
