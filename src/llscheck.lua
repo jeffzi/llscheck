@@ -2,6 +2,7 @@ local ansicolors = require("ansicolors")
 local argparse = require("argparse")
 local cjson = require("cjson")
 local path = require("pl.path")
+local tablex = require("pl.tablex")
 
 ---@enum Severity
 local Severity = {
@@ -111,6 +112,22 @@ local function print_summary(warnings, errors, files)
    print(string.format("Total: %s warnings / %s errors in %s files", warn_count, err_count, files))
 end
 
+local function compare_diagnostics(x, y)
+   local x_line = x.range.start.line
+   local y_line = y.range.start.line
+   if x_line ~= y_line then
+      return x_line < y_line
+   end
+
+   local x_character = x.range.start.character
+   local y_character = y.range.start.character
+   if x_character ~= y_character then
+      return x_character < y_character
+   end
+
+   return x.severity < y.severity
+end
+
 ---Print a human-friendly LuaLS diagnosis report.
 ---@param raw_reports table Array of parsed diagnosis reports (check.json files).
 local function print_report(raw_reports)
@@ -119,12 +136,12 @@ local function print_report(raw_reports)
    local files = 0
    local total_diagnostics = 0
    for _, raw_report in ipairs(raw_reports) do
-      for filepath, diagnostics in pairs(raw_report) do
+      for filepath, diagnostics in tablex.sort(raw_report) do
          files = files + 1
          filepath = filepath:gsub("file://", "")
          filepath = path.relpath(filepath)
-         for _, diagnostic in ipairs(diagnostics) do
-            print_diagnostic(filepath, diagnostic)
+         for _, diagnostic in tablex.sortv(diagnostics, compare_diagnostics) do
+            print_diagnostic_line(filepath, diagnostic)
             if diagnostic.severity == Severity.Error then
                errors = errors + 1
             elseif diagnostic.severity == Severity.Warning then
