@@ -83,7 +83,7 @@ end
 ---Print human-friendly LuaLS diagnosis report (1 line).
 ---@param filepath string
 ---@param diagnostic table
-local function print_diagnostic(filepath, diagnostic)
+local function print_diagnostic_line(filepath, diagnostic)
    local colon = colorize(":", "white dim")
    local dash = colorize("-", "white dim")
    local loc = string.format(
@@ -119,6 +119,10 @@ local function print_summary(warnings, errors, files)
    print(string.format("Total: %s warnings / %s errors in %s files", warn_count, err_count, files))
 end
 
+---Compare diagnostic lines for sorting
+---@param x table
+---@param y table
+---@return boolean
 local function compare_diagnostics(x, y)
    local x_line = x.range.start.line
    local y_line = y.range.start.line
@@ -166,7 +170,7 @@ end
 ---Validate that filepath exists
 ---@param filepath string
 ---@return string? Validated filepath
----@return string Error message
+---@return string? Error message
 local function validate_file(filepath)
    if not path.exists(filepath) then
       return nil, string.format("'%s': No such file or directory", filepath)
