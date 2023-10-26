@@ -54,12 +54,13 @@ end
 ---@return table A list of parsed diagnosis report (check.json).
 local function luals_check(files, checklevel)
    local diagnosis = {}
-   local logpath = path.tmpname()
-   local diagnosis_path = path.join(logpath, "check.json")
    for _, src_file in ipairs(files) do
+      local logpath = path.tmpname()
+      os.remove(logpath)
+      local diagnosis_path = path.join(logpath, "check.json")
       local lls_cmd = (
          string.format(
-            "lua-language-server --check %s --checklevel=%s --logpath=%s",
+            "lua-language-server --check=%s --checklevel=%s --logpath=%s",
             src_file,
             checklevel,
             logpath
@@ -74,7 +75,6 @@ local function luals_check(files, checklevel)
       if path.exists(diagnosis_path) then
          local partial_diagnosis = read_diagnosis(diagnosis_path)
          table.insert(diagnosis, partial_diagnosis)
-         os.remove(diagnosis_path)
       end
    end
    return diagnosis
