@@ -4,6 +4,8 @@ local cjson = require("cjson")
 local path = require("pl.path")
 local tablex = require("pl.tablex")
 
+io.stdout:setvbuf("no")
+
 ---@enum Severity
 local Severity = {
    Error = 1,
@@ -63,7 +65,12 @@ local function luals_check(files, checklevel)
             logpath
          )
       )
-      io.popen(lls_cmd)
+
+      local file = assert(io.popen(lls_cmd))
+      -- Wait until command ends
+      file:flush()
+      file:close()
+
       if path.exists(diagnosis_path) then
          local partial_diagnosis = read_diagnosis(diagnosis_path)
          table.insert(diagnosis, partial_diagnosis)
