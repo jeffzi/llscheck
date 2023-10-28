@@ -18,11 +18,11 @@ end
 description = {
    summary = "Generate a LuaLS diagnosis report and print to human-friendly format.",
    detailed = [[
-      LLSCheck is a command-line utility that leverages the Lua Language Server for linting and 
+      LLSCheck is a command-line utility that leverages the Lua Language Server for linting and
       static analysis of Lua code. It delivers user-friendly reports, enhancing readability compared
       to raw JSON output. Moreover, LLSCheck seamlessly integrates with popular CI tools.
    ]],
-   homepage = "https::/github.com/jeffzi/llscheck",
+   homepage = "https://github.com/jeffzi/llscheck",
    license = "MIT",
 }
 
