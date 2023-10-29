@@ -52,9 +52,9 @@ add this to the `.pre-commit-config.yaml` in your repository:
 
 ```yaml
 repos:
-- repo: https://github.com/jeffzi/llscheck
+  - repo: https://github.com/jeffzi/llscheck
     rev: latest
     hooks:
       - id: llscheck
-        # args: --checklevel Hint
+        # args: ["--checklevel", "Hint"]
 ```
