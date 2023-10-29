@@ -51,8 +51,9 @@ end
 ---Run `lua-language-server --check` for each source file in files.
 ---@param files table A list of source files (or directories) to check.
 ---@param checklevel string One of: Error, Warning, Information, Hint
+---@param configpath string LuaLS configpath argument
 ---@return table A list of parsed diagnosis report (check.json).
-local function luals_check(files, checklevel)
+local function luals_check(files, checklevel, configpath)
    local diagnosis = {}
    for _, src_file in ipairs(files) do
       local logpath = path.tmpname()
@@ -66,6 +67,9 @@ local function luals_check(files, checklevel)
             logpath
          )
       )
+      if configpath then
+         lls_cmd = lls_cmd .. string.format(" --configpath=%s", configpath)
+      end
 
       local file = assert(io.popen(lls_cmd))
       -- Wait until command ends
@@ -171,7 +175,7 @@ local function print_report(raw_reports)
    return total_diagnostics
 end
 
----Validate that filepath exists
+---Validate that filepath exists and convert it to absolute path.
 ---@param filepath string
 ---@return string? Validated filepath
 ---@return string? Error message
@@ -182,6 +186,19 @@ local function validate_file(filepath)
    return filepath
 end
 
+---Return default configpath if it exists
+---@return string?
+local function get_default_configpath()
+   local default = path.join(path.currentdir(), ".luarc.json")
+   if path.exists(default) then
+      -- LuaLS has troubles dealing with non-absolute configpath.
+      -- https://github.com/LuaLS/lua-language-server/issues/2038
+      return path.abspath(default)
+   else
+      return nil
+   end
+end
+
 local function main()
    local desc = "Generate a LuaLS diagnosis report and print to human-friendly format."
    local parser = argparse("llscheck", desc):add_complete()
@@ -190,13 +207,17 @@ local function main()
       :args("+")
       :convert(validate_file)
    parser
-      :option("--checklevel")
+      :option("--checklevel", "The minimum level of diagnostic that should be logged.")
       :choices({ "Error", "Warning", "Information", "Hint" })
       :default("Warning")
+   parser
+      :option("--configpath", "Path to a LuaLS config file.")
+      :default(get_default_configpath())
+      :convert(validate_file)
 
    local args = parser:parse()
 
-   local raw_reports = luals_check(args.files, args.checklevel)
+   local raw_reports = luals_check(args.files, args.checklevel, args.configpath)
    local diagnostics = print_report(raw_reports)
 
    if diagnostics > 0 then
