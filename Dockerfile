@@ -16,4 +16,6 @@ RUN LLS_ARCHIVE="lua-language-server-$LLS_VERSION-linux-x64-musl.tar.gz" \
 
 RUN luarocks install llscheck
 
+WORKDIR /data
+
 ENTRYPOINT ["llscheck"]
