@@ -47,6 +47,34 @@ Options:
                          default: Warning
 ```
 
+## Docker
+
+Alternatively LLSCheck can be run as a standalone docker container.
+You can either build your own or download a prebuilt version.
+To build your own, execute the following command from the source directory of this project:
+
+```console
+docker build --build-arg LLS_VERSION=3.7.0 -t llscheck:HEAD https://github.com/jeffzi/llscheck.git
+```
+
+where `LLS_VERSION` is the [version of the Lua Language Server](https://github.com/LuaLS/lua-language-server/releases).
+
+To use a prebuilt image, download it from the GitHub Container Registry.
+Here we use the one tagged _latest_, but you can substitute _latest_ for any tagged release.
+
+```console
+docker pull ghcr.io/jeffzi/llscheck:latest
+```
+
+Once you have a container you can run it with arguments (substitute _latest_ with _HEAD_ if you built your own or with the tagged version you want if applicable):
+
+```console
+# Run llscheck on the src directory
+docker run -v "$(pwd):/data" ghcr.io/jeffzi/llscheck:latest --checklevel Information src
+```
+
+On an Apple Silicon chip (M1+), you'll need to add the option `--platform=linux/amd64` to both docker commands.
+
 ## Version control integration
 
 Use [pre-commit](https://pre-commit.com). Once you [have it installed](https://pre-commit.com/#install),
