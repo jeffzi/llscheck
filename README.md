@@ -11,6 +11,10 @@ Language Server finds issues.
 
 ## CLI
 
+### Requirements
+
+Lua Language Server must be [installed locally](https://luals.github.io/#other-install) and `lua-language-server` must be in your $PATH.
+
 ### Installation
 
 Using [LuaRocks](https://luarocks.org):
@@ -20,8 +24,6 @@ luarocks install llscheck
 ```
 
 ### Usage
-
-From the command line:
 
 ```bash
 llscheck --help
