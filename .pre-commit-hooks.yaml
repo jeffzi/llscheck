@@ -1,0 +1,6 @@
+- id: llscheck
+  name: llscheck
+  description: Lint and static analysis of Lua code with Lua Language Server
+  entry: llscheck
+  language: lua
+  types: [lua]

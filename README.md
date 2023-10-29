@@ -1,3 +1,5 @@
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
+
 # llscheck
 
 LLSCheck is a command-line utility that leverages the [Lua Language Server](https://luals.github.io)
@@ -41,4 +43,18 @@ Options:
                          Output a shell completion script for the specified shell.
    --checklevel {Error,Warning,Information,Hint}
                          default: Warning
+```
+
+## Version control integration
+
+Use [pre-commit](https://pre-commit.com). Once you [have it installed](https://pre-commit.com/#install),
+add this to the `.pre-commit-config.yaml` in your repository:
+
+```yaml
+repos:
+- repo: https://github.com/jeffzi/llscheck
+    rev: latest
+    hooks:
+      - id: llscheck
+        # args: --checklevel Hint
 ```
