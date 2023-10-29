@@ -28,6 +28,7 @@ description = {
 
 dependencies = {
    "lua >= 5.1",
+   "ansicolors >=v1.0.2",
    "argparse >= 0.7.0",
    "lua-cjson >= 2.1.0.9",
    "luafilesystem >= 1.8.0",
