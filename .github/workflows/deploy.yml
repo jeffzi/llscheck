@@ -23,7 +23,7 @@ jobs:
     if: >-
       ${{
         github.repository == 'jeffzi/llscheck' &&
-        ( github.ref_name == 'dev' || startsWith(github.ref, 'refs/tags/') ) &&
+        ( github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/') ) &&
         needs.affected.outputs.rockspecs
       }}
     uses: lunarmodules/.github/.github/workflows/upload_to_luarocks.yml@main
