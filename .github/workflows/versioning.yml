@@ -4,6 +4,9 @@ on:
   release:
     types: [created, published, edited]
 
+permissions:
+  contents: write
+
 jobs:
   actions-tagger:
     runs-on: ubuntu-latest
