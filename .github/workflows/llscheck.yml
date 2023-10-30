@@ -1,0 +1,48 @@
+# ATTENTION
+#
+# This is *not* a typical llscheck workflow! Do not copy this to other projects!
+# Instead of installing llscheck from somewhere and using it on a code base,
+# we're actually building and running the current HEAD version on ourselves:
+# basically this is a combination bootstrap test and dogfooding. The upshot is
+# that we check both that everything works (and end-to-end test) and that the
+# current codebase lints against itself. This ensures we can fix a bug or make
+# a breaking change in llscheck without being blocked by our own CI using a
+# different llscheck version.
+#
+# See the README.md file for examples suitable for use in other projects.
+
+name: LLSCheck
+
+on: [push, pull_request]
+
+jobs:
+  llscheck:
+    strategy:
+      fail-fast: false
+      matrix:
+        luaVersion: ["5.4", "5.3", "5.2", "5.1", "luajit"]
+        os: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Lua
+        uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: ${{ matrix.luaVersion }}
+
+      - name: Setup LuaRocks
+        uses: leafo/gh-actions-luarocks@v4
+
+      - name: Install dependencies
+        run: |
+          luarocks install --deps-only llscheck-dev-1.rockspec
+
+      - name: Build llscheck (bootstrap)
+        run: luarocks make
+
+      - name: Run llscheck (dogfood)
+        run: llscheck .
