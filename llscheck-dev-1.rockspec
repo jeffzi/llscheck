@@ -1,6 +1,6 @@
 package = "llscheck"
 
-local package_version = "0.1.0"
+local package_version = "dev"
 local rockspec_revision = "1"
 
 version = package_version .. "-" .. rockspec_revision
@@ -16,7 +16,7 @@ else
 end
 
 description = {
-   summary = "Generate a LuaLS diagnosis report and print to human-friendly format.",
+   summary = "Human-friendly Lua code analysis powered by Lua Language Server.",
    detailed = [[
       LLSCheck is a command-line utility that leverages the Lua Language Server for linting and
       static analysis of Lua code. It delivers user-friendly reports, enhancing readability compared
