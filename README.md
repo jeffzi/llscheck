@@ -33,7 +33,7 @@ llscheck --help
 ```
 Usage: llscheck [-h] [--completion {bash,zsh,fish}]
        [--checklevel {Error,Warning,Information,Hint}]
-       <files> [<files>] ...
+       [--configpath <configpath>] <files> [<files>] ...
 
 Generate a LuaLS diagnosis report and print to human-friendly format.
 
@@ -45,7 +45,9 @@ Options:
    --completion {bash,zsh,fish}
                          Output a shell completion script for the specified shell.
    --checklevel {Error,Warning,Information,Hint}
-                         default: Warning
+                         The minimum level of diagnostic that should be logged. (default: Warning)
+   --configpath <configpath>
+                         Path to a LuaLS config file. (default: .luarc.json)
 ```
 
 ## Docker
