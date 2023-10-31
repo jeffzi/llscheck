@@ -54,10 +54,10 @@ You can either build your own or download a prebuilt version.
 To build your own, execute the following command from the source directory of this project:
 
 ```console
-docker build --build-arg LLS_VERSION=3.7.0 -t llscheck:HEAD https://github.com/jeffzi/llscheck.git
+docker build -t llscheck:HEAD https://github.com/jeffzi/llscheck.git
 ```
 
-where `LLS_VERSION` is the [version of the Lua Language Server](https://github.com/LuaLS/lua-language-server/releases).
+Optionally, you can pin the [version of Lua Language Server](<(https://github.com/LuaLS/lua-language-server/releases)>) with `--build-arg LLS_VERSION=3.7.0`.
 
 To use a prebuilt image, download it from the GitHub Container Registry.
 Here we use the one tagged _latest_, but you can substitute _latest_ for any tagged release.

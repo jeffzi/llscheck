@@ -2,17 +2,32 @@ local ansicolors = require("ansicolors")
 local argparse = require("argparse")
 local cjson = require("cjson")
 local path = require("pl.path")
+local stringx = require("pl.stringx")
 local tablex = require("pl.tablex")
 local utils = require("pl.utils")
 
 io.stdout:setvbuf("no")
 
----@enum Severity
+---@enum SEVERITY
 local Severity = {
    Error = 1,
    Warning = 2,
    Information = 3,
    Hint = 4,
+}
+
+local SeverityName = {
+   "Error",
+   "Warning",
+   "Information",
+   "Hint",
+}
+
+local SeverityColor = {
+   "red",
+   "yellow",
+   "white bright",
+   "white dim",
 }
 
 ---@param message string
@@ -21,22 +36,6 @@ local Severity = {
 local function colorize(message, color)
    local txt = "%" .. string.format("{%s}%s", color, message)
    return ansicolors(txt)
-end
-
----Colorize message depending on the severity.
----@param message any
----@param severity Severity
----@return string
-local function colorize_severity(message, severity)
-   local color
-   if severity == Severity.Error then
-      color = "red"
-   elseif severity == Severity.Warning then
-      color = "yellow"
-   else
-      color = "white"
-   end
-   return colorize(message, color)
 end
 
 ---Parse a LuaLS diagnosis report check.json file.
@@ -116,26 +115,43 @@ local function print_diagnostic_line(filepath, diagnostic)
          "%s%s %s%s %s",
          loc,
          colon,
-         colorize_severity(diagnostic.code, severity),
+         colorize(diagnostic.code, SeverityColor[severity]),
          colon,
-         severity == Severity.Hint and colorize_severity(msg, severity) or msg
+         severity == Severity.Hint and colorize(msg, SeverityColor[severity]) or msg
       )
    )
 end
 
+local function colorized_count(severity_name, count)
+   local color = count > 0 and (SeverityColor[Severity[severity_name]] or "white") or "green"
+   local msg = string.format("%s %ss", count, severity_name)
+   return colorize(msg, color)
+end
+
 ---Print a summary of the diagnostics
----@param warnings integer Number of warnings
----@param errors integer Number of errors
----@param files integer Number of files containing diagnostics
-local function print_summary(warnings, errors, files)
-   local zero_count = colorize("0", "green")
-   local warn_count = warnings > 0 and colorize_severity(warnings, Severity.Warning) or zero_count
-   local err_count = errors > 0 and colorize_severity(errors, Severity.Error) or zero_count
-   local msg = string.format("Total: %s warnings / %s errors", warn_count, err_count)
-   if files > 0 then
-      msg = string.format("%s in %s files", msg, files)
+---@param stats table Counts of diagnostics indexed by severity name
+local function print_summary(stats)
+   local summary
+   local total = stats["total"]
+   if total == 0 then
+      summary = "No issues found ✨ 🍰 ✨"
+   else
+      local severities = {}
+      for _, severity_name in ipairs(SeverityName) do
+         local count = stats[severity_name]
+         if count then
+            table.insert(severities, colorized_count(severity_name, stats[severity_name]))
+         end
+      end
+      summary = string.format(
+         "\n%s: %s in %d files",
+         colorize("Total " .. total, "white bright"),
+         stringx.join(" / ", severities),
+         stats["files"]
+      )
    end
-   print(msg)
+
+   print(summary)
 end
 
 ---Compare diagnostic lines for sorting
@@ -160,36 +176,30 @@ end
 
 ---Print a human-friendly LuaLS diagnosis report.
 ---@param raw_reports table Array of parsed diagnosis reports (check.json files).
+---@return table stats Counts of diagnostics indexed by severity name
 local function print_report(raw_reports)
-   local errors = 0
-   local warnings = 0
-   local files = 0
-   local total_diagnostics = 0
+   local stats = { total = 0, files = 0 }
    for _, raw_report in ipairs(raw_reports) do
       for filepath, diagnostics in tablex.sort(raw_report) do
-         files = files + 1
+         stats["files"] = stats["files"] + 1
          filepath = filepath:gsub("file://", "")
          filepath = path.relpath(filepath)
          for _, diagnostic in tablex.sortv(diagnostics, compare_diagnostics) do
             print_diagnostic_line(filepath, diagnostic)
-            if diagnostic.severity == Severity.Error then
-               errors = errors + 1
-            elseif diagnostic.severity == Severity.Warning then
-               warnings = warnings + 1
-            end
-            total_diagnostics = total_diagnostics + 1
+            local severity_name = SeverityName[diagnostic.severity]
+            stats[severity_name] = (stats[severity_name] or 0) + 1
+            stats["total"] = stats["total"] + 1
          end
       end
    end
-
-   print_summary(warnings, errors, files)
-   return total_diagnostics
+   print_summary(stats)
+   return stats
 end
 
 ---Validate that filepath exists and convert it to absolute path.
 ---@param filepath string
----@return string? Validated filepath
----@return string? Error message
+---@return string? filepath Validated filepath
+---@return string? error Error message
 local function validate_file(filepath)
    if not path.exists(filepath) then
       return nil, string.format("'%s': No such file or directory", filepath)
@@ -231,7 +241,7 @@ local function main()
    local raw_reports = luals_check(args.files, args.checklevel, args.configpath)
    local diagnostics = print_report(raw_reports)
 
-   if diagnostics > 0 then
+   if diagnostics["total"] > 0 then
       os.exit(1)
    end
 end
