@@ -99,7 +99,6 @@ end
 ---@param diagnostic table
 local function print_diagnostic_line(filepath, diagnostic)
    local colon = colorize(":", "white dim")
-   local dash = colorize("-", "white dim")
    local loc = string.format(
       "%s%s%d%s%d%s%d",
       colorize(filepath, "blue"),
@@ -107,17 +106,19 @@ local function print_diagnostic_line(filepath, diagnostic)
       diagnostic.range.start.line,
       colon,
       diagnostic.range.start.character,
-      dash,
+      colorize("-", "white dim"),
       diagnostic.range["end"].character
    )
+   local msg = diagnostic.message
+   local severity = diagnostic.severity
    print(
       string.format(
          "%s%s %s%s %s",
          loc,
          colon,
-         colorize_severity(diagnostic.code, diagnostic.severity),
+         colorize_severity(diagnostic.code, severity),
          colon,
-         diagnostic.message
+         severity == Severity.Hint and colorize_severity(msg, severity) or msg
       )
    )
 end
