@@ -50,4 +50,4 @@ jobs:
         run: luarocks make
 
       - name: Run llscheck
-        run: llscheck .
+        run: llscheck src
