@@ -23,7 +23,7 @@ repos:
   - repo: https://github.com/JohnnyMorganz/StyLua
     rev: v0.18.2
     hooks:
-      - id: stylua-github
+      - id: stylua
 
   - repo: https://github.com/lunarmodules/luacheck
     rev: v1.1.1
