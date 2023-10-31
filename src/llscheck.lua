@@ -71,17 +71,18 @@ local function luals_check(files, checklevel, configpath)
       local logpath = path.tmpname()
       os.remove(logpath)
       local diagnosis_path = path.join(logpath, "check.json")
-      local lls_cmd = (
-         string.format(
-            "lua-language-server --check=%s --checklevel=%s --logpath=%s",
-            src_file,
-            checklevel,
-            logpath
-         )
-      )
+      local args = {
+         "--check",
+         src_file,
+         "--checklevel",
+         checklevel,
+         "--logpath",
+         logpath,
+      }
       if configpath then
-         lls_cmd = lls_cmd .. string.format(" --configpath=%s", configpath)
+         table.insert(args, { "--configpath", configpath })
       end
+      local lls_cmd = "lua-language-server " .. utils.quote_arg(args)
 
       execute(lls_cmd)
 
