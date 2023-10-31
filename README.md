@@ -13,7 +13,8 @@ Language Server finds issues.
 
 ### Requirements
 
-Lua Language Server must be [installed locally](https://luals.github.io/#other-install) and `lua-language-server` must be in your $PATH.
+Lua Language Server must be [installed locally](https://luals.github.io/#other-install)
+and `lua-language-server` must be in your $PATH.
 
 ### Installation
 
@@ -50,32 +51,27 @@ Options:
 ## Docker
 
 Alternatively LLSCheck can be run as a standalone docker container.
-You can either build your own or download a prebuilt version.
 To build your own, execute the following command from the source directory of this project:
 
 ```console
-docker build -t llscheck:HEAD https://github.com/jeffzi/llscheck.git
+docker build -t llscheck https://github.com/jeffzi/llscheck.git
 ```
 
 Optionally, you can pin the [version of Lua Language Server](<(https://github.com/LuaLS/lua-language-server/releases)>) with `--build-arg LLS_VERSION=3.7.0`.
 
-To use a prebuilt image, download it from the GitHub Container Registry.
-Here we use the one tagged _latest_, but you can substitute _latest_ for any tagged release.
-
-```console
-docker pull ghcr.io/jeffzi/llscheck:latest
-```
-
-Once you have a container you can run it with arguments (substitute _latest_ with _HEAD_ if you built your own or with the tagged version you want if applicable):
+Once you have a container you can run it with arguments:
 
 ```console
 # Run llscheck on the src directory
-docker run -v "$(pwd):/data" ghcr.io/jeffzi/llscheck:latest --checklevel Information src
+docker run -v "$(pwd):/data" llscheck --checklevel Information src
 ```
 
 On an Apple Silicon chip (M1+), you'll need to add the option `--platform=linux/amd64` to both docker commands.
 
 ## Version control integration
+
+Lua Language Server must be [installed locally](https://luals.github.io/#other-install)
+and `lua-language-server` must be in your $PATH.
 
 Use [pre-commit](https://pre-commit.com). Once you [have it installed](https://pre-commit.com/#install),
 add this to the `.pre-commit-config.yaml` in your repository:
