@@ -21,13 +21,19 @@ jobs:
       fail-fast: false
       matrix:
         luaVersion: ["5.4", "5.3", "5.2", "5.1", "luajit"]
-        os: [ubuntu-latest, windows-latest]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Install Lua Language Server
+        run: brew install lua-language-server
 
       - name: Setup Lua
         uses: leafo/gh-actions-lua@v10
@@ -38,11 +44,10 @@ jobs:
         uses: leafo/gh-actions-luarocks@v4
 
       - name: Install dependencies
-        run: |
-          luarocks install --deps-only llscheck-dev-1.rockspec
+        run: luarocks install --deps-only llscheck-dev-1.rockspec
 
       - name: Build llscheck (bootstrap)
         run: luarocks make
 
-      - name: Run llscheck (dogfood)
+      - name: Run llscheck
         run: llscheck .
