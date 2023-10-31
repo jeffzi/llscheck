@@ -3,6 +3,7 @@ local argparse = require("argparse")
 local cjson = require("cjson")
 local path = require("pl.path")
 local tablex = require("pl.tablex")
+local utils = require("pl.utils")
 
 io.stdout:setvbuf("no")
 
@@ -48,6 +49,17 @@ local function read_diagnosis(filepath)
    return cjson.decode(raw_diagnosis)
 end
 
+---Execute the command and exit the program on error.
+---@param cmd string
+local function execute(cmd)
+   local is_success, _, _, stderr = utils.executeex(cmd)
+   if not is_success then
+      local trimmed_stderr = stderr:gsub("^%s*(.-)%s*$", "%1")
+      local header = (colorize("Command failed: ", "red") .. colorize(cmd, "yellow"))
+      utils.quit(-1, header .. "\n" .. trimmed_stderr)
+   end
+end
+
 ---Run `lua-language-server --check` for each source file in files.
 ---@param files table A list of source files (or directories) to check.
 ---@param checklevel string One of: Error, Warning, Information, Hint
@@ -71,10 +83,7 @@ local function luals_check(files, checklevel, configpath)
          lls_cmd = lls_cmd .. string.format(" --configpath=%s", configpath)
       end
 
-      local file = assert(io.popen(lls_cmd))
-      -- Wait until command ends
-      file:flush()
-      file:close()
+      execute(lls_cmd)
 
       if path.exists(diagnosis_path) then
          local partial_diagnosis = read_diagnosis(diagnosis_path)
