@@ -94,9 +94,9 @@ local function make_diagnostic_line(filepath, diagnostic)
       "%s%s%d%s%d%s%d",
       colorize(filepath, "blue"),
       colon,
-      diagnostic.range.start.line,
+      diagnostic.range.start.line + 1,
       colon,
-      diagnostic.range.start.character,
+      diagnostic.range.start.character + 1,
       colorize("-", "white dim"),
       diagnostic.range["end"].character
    )
