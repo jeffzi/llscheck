@@ -2,7 +2,6 @@ local ansicolors = require("ansicolors")
 local argparse = require("argparse")
 local cjson = require("cjson")
 local path = require("pl.path")
-local stringx = require("pl.stringx")
 local tablex = require("pl.tablex")
 local utils = require("pl.utils")
 
@@ -34,8 +33,7 @@ local SeverityColor = {
 ---@param color string
 ---@return string
 local function colorize(message, color)
-   local txt = "%" .. string.format("{%s}%s", color, message)
-   return ansicolors(txt)
+   return ansicolors("%{" .. color .. "}" .. message .. "%{reset}")
 end
 
 ---Parse a LuaLS diagnosis report check.json file.
@@ -87,10 +85,10 @@ local function luals_check(workspace, checklevel, configpath)
    end
 end
 
----Print human-friendly LuaLS diagnosis report (1 line).
+---Return a human-friendly LuaLS diagnosis report (1 line).
 ---@param filepath string
 ---@param diagnostic table
-local function print_diagnostic_line(filepath, diagnostic)
+local function make_diagnostic_line(filepath, diagnostic)
    local colon = colorize(":", "white dim")
    local loc = string.format(
       "%s%s%d%s%d%s%d",
@@ -104,15 +102,13 @@ local function print_diagnostic_line(filepath, diagnostic)
    )
    local msg = diagnostic.message
    local severity = diagnostic.severity
-   print(
-      string.format(
-         "%s%s %s%s %s",
-         loc,
-         colon,
-         colorize(diagnostic.code, SeverityColor[severity]),
-         colon,
-         severity == Severity.Hint and colorize(msg, SeverityColor[severity]) or msg
-      )
+   return string.format(
+      "%s%s %s%s %s",
+      loc,
+      colon,
+      colorize(diagnostic.code, SeverityColor[severity]),
+      colon,
+      severity == Severity.Hint and colorize(msg, SeverityColor[severity]) or msg
    )
 end
 
@@ -122,9 +118,10 @@ local function colorized_count(severity_name, count)
    return colorize(msg, color)
 end
 
----Print a summary of the diagnostics
+---Return a summary of the diagnostics
 ---@param stats table Counts of diagnostics indexed by severity name
-local function print_summary(stats)
+---@return string
+local function make_summary(stats)
    local summary
    local total = stats["total"]
    if total == 0 then
@@ -140,12 +137,11 @@ local function print_summary(stats)
       summary = string.format(
          "\n%s: %s in %d files",
          colorize("Total " .. total, "white bright"),
-         stringx.join(" / ", severities),
+         table.concat(severities, " / "),
          stats["files"]
       )
    end
-
-   print(summary)
+   return summary
 end
 
 ---Compare diagnostic lines for sorting
@@ -168,24 +164,26 @@ local function compare_diagnostics(x, y)
    return x.severity < y.severity
 end
 
----Print a human-friendly LuaLS diagnosis report.
----@param report table Array of parsed diagnosis reports (check.json files).
+---Return a human-friendly LuaLS diagnosis report.
+---@param diagnosis table Array of parsed diagnosis reports (check.json files).
+---@return string report Hhuman-friendly LuaLS diagnosis report
 ---@return table stats Counts of diagnostics indexed by severity name
-local function print_report(report)
+local function make_report(diagnosis)
    local stats = { total = 0, files = 0 }
-   for filepath, diagnostics in tablex.sort(report) do
+   local lines = {}
+   for filepath, diagnostics in tablex.sort(diagnosis) do
       stats["files"] = stats["files"] + 1
       filepath = filepath:gsub("file://", "")
       filepath = path.relpath(filepath)
       for _, diagnostic in tablex.sortv(diagnostics, compare_diagnostics) do
-         print_diagnostic_line(filepath, diagnostic)
+         table.insert(lines, make_diagnostic_line(filepath, diagnostic))
          local severity_name = SeverityName[diagnostic.severity]
          stats[severity_name] = (stats[severity_name] or 0) + 1
          stats["total"] = stats["total"] + 1
       end
    end
-   print_summary(stats)
-   return stats
+   table.insert(lines, make_summary(stats))
+   return table.concat(lines, "\n"), stats
 end
 
 ---Validate that filepath exists and convert it to absolute path.
@@ -228,9 +226,10 @@ local function main()
 
    local args = parser:parse()
 
-   local report = luals_check(args.workspace, args.checklevel, args.configpath)
-   if report then
-      local diagnostics = print_report(report)
+   local diagnosis = luals_check(args.workspace, args.checklevel, args.configpath)
+   if diagnosis then
+      local report, diagnostics = make_report(diagnosis)
+      io.stdout:write(report)
       if diagnostics["total"] > 0 then
          os.exit(1)
       end
