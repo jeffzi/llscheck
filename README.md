@@ -1,4 +1,6 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
+[![Luacheck](https://github.com/jeffzi/llscheck/actions/workflows/luacheck.yml/badge.svg)](https://github.com/jeffzi/llscheck/actions/workflows/luacheck.yml)
+[![Luarocks](https://img.shields.io/luarocks/v/jeffzi/icecream?label=Luarocks&logo=Lua)](https://luarocks.org/modules/jeffzi/llscheck)
 
 # llscheck
 
@@ -52,7 +54,7 @@ Options:
 
 ## Docker
 
-Alternatively LLSCheck can be run as a standalone docker container.
+You can also run LLSCheck as a standalone Docker container.
 To build your own, execute the following command from the source directory of this project:
 
 ```console
@@ -68,7 +70,7 @@ Once you have a container you can run it with arguments:
 docker run -v "$(pwd):/data" llscheck --checklevel Information src
 ```
 
-On an Apple Silicon chip (M1+), you'll need to add the option `--platform=linux/amd64` to both docker commands.
+On an Apple Silicon chip M1+, you'll need to add the option `--platform=linux/amd64` to both docker commands.
 
 ## Version control integration
 
