@@ -59,38 +59,32 @@ local function execute(cmd)
    end
 end
 
----Run `lua-language-server --check` for each source file in files.
----@param files table A list of source files (or directories) to check.
+---Run `lua-language-server --check` to perform a diganosis report
+---@param workspace table A list of source files (or directories) to check.
 ---@param checklevel string One of: Error, Warning, Information, Hint
 ---@param configpath string LuaLS configpath argument
----@return table A list of parsed diagnosis report (check.json).
-local function luals_check(files, checklevel, configpath)
-   local diagnosis = {}
-   for _, src_file in ipairs(files) do
-      local logpath = path.tmpname()
-      os.remove(logpath)
-      local diagnosis_path = path.join(logpath, "check.json")
-      local args = {
-         "--check",
-         src_file,
-         "--checklevel",
-         checklevel,
-         "--logpath",
-         logpath,
-      }
-      if configpath then
-         table.insert(args, { "--configpath", configpath })
-      end
-      local lls_cmd = "lua-language-server " .. utils.quote_arg(args)
-
-      execute(lls_cmd)
-
-      if path.exists(diagnosis_path) then
-         local partial_diagnosis = read_diagnosis(diagnosis_path)
-         table.insert(diagnosis, partial_diagnosis)
-      end
+---@return table? The parsed diagnosis report (check.json).
+local function luals_check(workspace, checklevel, configpath)
+   local logpath = path.tmpname()
+   os.remove(logpath)
+   local diagnosis_path = path.join(logpath, "check.json")
+   local args = {
+      "--check",
+      workspace,
+      "--checklevel",
+      checklevel,
+      "--logpath",
+      logpath,
+   }
+   if configpath then
+      table.insert(args, { "--configpath", configpath })
    end
-   return diagnosis
+   local lls_cmd = "lua-language-server " .. utils.quote_arg(args)
+   execute(lls_cmd)
+
+   if path.exists(diagnosis_path) then
+      return read_diagnosis(diagnosis_path)
+   end
 end
 
 ---Print human-friendly LuaLS diagnosis report (1 line).
@@ -175,21 +169,19 @@ local function compare_diagnostics(x, y)
 end
 
 ---Print a human-friendly LuaLS diagnosis report.
----@param raw_reports table Array of parsed diagnosis reports (check.json files).
+---@param report table Array of parsed diagnosis reports (check.json files).
 ---@return table stats Counts of diagnostics indexed by severity name
-local function print_report(raw_reports)
+local function print_report(report)
    local stats = { total = 0, files = 0 }
-   for _, raw_report in ipairs(raw_reports) do
-      for filepath, diagnostics in tablex.sort(raw_report) do
-         stats["files"] = stats["files"] + 1
-         filepath = filepath:gsub("file://", "")
-         filepath = path.relpath(filepath)
-         for _, diagnostic in tablex.sortv(diagnostics, compare_diagnostics) do
-            print_diagnostic_line(filepath, diagnostic)
-            local severity_name = SeverityName[diagnostic.severity]
-            stats[severity_name] = (stats[severity_name] or 0) + 1
-            stats["total"] = stats["total"] + 1
-         end
+   for filepath, diagnostics in tablex.sort(report) do
+      stats["files"] = stats["files"] + 1
+      filepath = filepath:gsub("file://", "")
+      filepath = path.relpath(filepath)
+      for _, diagnostic in tablex.sortv(diagnostics, compare_diagnostics) do
+         print_diagnostic_line(filepath, diagnostic)
+         local severity_name = SeverityName[diagnostic.severity]
+         stats[severity_name] = (stats[severity_name] or 0) + 1
+         stats["total"] = stats["total"] + 1
       end
    end
    print_summary(stats)
@@ -201,6 +193,7 @@ end
 ---@return string? filepath Validated filepath
 ---@return string? error Error message
 local function validate_file(filepath)
+   filepath = path.abspath(filepath)
    if not path.exists(filepath) then
       return nil, string.format("'%s': No such file or directory", filepath)
    end
@@ -223,10 +216,7 @@ end
 local function main()
    local desc = "Generate a LuaLS diagnosis report and print to human-friendly format."
    local parser = argparse("llscheck", desc):add_complete()
-   parser
-      :argument("files", "List of files and directories to check.")
-      :args("+")
-      :convert(validate_file)
+   parser:argument("workspace", "The workspace to check."):default("."):convert(validate_file)
    parser
       :option("--checklevel", "The minimum level of diagnostic that should be logged.")
       :choices({ "Error", "Warning", "Information", "Hint" })
@@ -238,11 +228,12 @@ local function main()
 
    local args = parser:parse()
 
-   local raw_reports = luals_check(args.files, args.checklevel, args.configpath)
-   local diagnostics = print_report(raw_reports)
-
-   if diagnostics["total"] > 0 then
-      os.exit(1)
+   local report = luals_check(args.workspace, args.checklevel, args.configpath)
+   if report then
+      local diagnostics = print_report(report)
+      if diagnostics["total"] > 0 then
+         os.exit(1)
+      end
    end
 end
 

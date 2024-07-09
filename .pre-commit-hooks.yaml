@@ -4,3 +4,4 @@
   entry: llscheck
   language: lua
   types: [lua]
+  pass_filenames: false
