@@ -33,12 +33,12 @@ llscheck --help
 ```
 Usage: llscheck [-h] [--completion {bash,zsh,fish}]
        [--checklevel {Error,Warning,Information,Hint}]
-       [--configpath <configpath>] <files> [<files>] ...
+       [--configpath <configpath>] [<workspace>]
 
 Generate a LuaLS diagnosis report and print to human-friendly format.
 
 Arguments:
-   files                 List of files and directories to check.
+   workspace             The workspace to check. (default: .)
 
 Options:
    -h, --help            Show this help message and exit.
