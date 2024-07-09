@@ -11,6 +11,8 @@ It delivers user-friendly reports, enhancing readability compared to raw JSON ou
 LLSCheck seamlessly integrates with popular CI tools, i.e the exit code is a failure when the Lua
 Language Server finds issues.
 
+![](demo.png)
+
 ## CLI
 
 ### Requirements
