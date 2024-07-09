@@ -1,6 +1,6 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 [![Luacheck](https://github.com/jeffzi/llscheck/actions/workflows/luacheck.yml/badge.svg)](https://github.com/jeffzi/llscheck/actions/workflows/luacheck.yml)
-[![Luarocks](https://img.shields.io/luarocks/v/jeffzi/icecream?label=Luarocks&logo=Lua)](https://luarocks.org/modules/jeffzi/llscheck)
+[![Luarocks](https://img.shields.io/luarocks/v/jeffzi/llscheck?label=Luarocks&logo=Lua)](https://luarocks.org/modules/jeffzi/llscheck)
 
 # llscheck
 
