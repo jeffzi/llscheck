@@ -229,7 +229,7 @@ local function main()
    local diagnosis = luals_check(args.workspace, args.checklevel, args.configpath)
    if diagnosis then
       local report, diagnostics = make_report(diagnosis)
-      io.stdout:write(report)
+      io.stdout:write(report .. "\n")
       if diagnostics["total"] > 0 then
          os.exit(1)
       end
