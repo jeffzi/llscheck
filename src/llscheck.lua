@@ -29,6 +29,28 @@ local SeverityColor = {
    "white dim",
 }
 
+---Create a uniform isatty function.
+---@return fun(): boolean
+local function get_isatty()
+   local system_loaded, system = pcall(require, "system")
+   if system_loaded and system.isatty then
+      return function()
+         return system.isatty(io.stdout)
+      end
+   end
+
+   local unistd_loaded, unistd = pcall(require, "posix.unistd")
+   if unistd_loaded then
+      return function()
+         return unistd.isatty(unistd.STDOUT_FILENO) == 1
+      end
+   end
+
+   return function()
+      return true
+   end
+end
+
 ---@param message string
 ---@param color string
 ---@return string
@@ -125,7 +147,7 @@ local function make_summary(stats)
    local summary
    local total = stats["total"]
    if total == 0 then
-      summary = "No issues found ✨ 🍰 ✨"
+      summary = "No issues found!"
    else
       local severities = {}
       for _, severity_name in ipairs(SeverityName) do
@@ -223,11 +245,18 @@ local function main()
       :option("--configpath", "Path to a LuaLS config file.")
       :default(get_default_configpath())
       :convert(validate_file)
+   parser:flag("--no-color", "Do not add color to output.")
 
    local args = parser:parse()
 
    local diagnosis = luals_check(args.workspace, args.checklevel, args.configpath)
    if diagnosis then
+      local isatty = get_isatty()
+      if not isatty() or args.no_color or os.getenv("NO_COLOR") then
+         colorize = function(msg)
+            return msg
+         end
+      end
       local report, diagnostics = make_report(diagnosis)
       io.stdout:write(report .. "\n")
       if diagnostics["total"] > 0 then
