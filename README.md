@@ -52,7 +52,16 @@ Options:
                          The minimum level of diagnostic that should be logged. (default: Warning)
    --configpath <configpath>
                          Path to a LuaLS config file. (default: .luarc.json)
+   --no-color            Do not add color to output.
 ```
+
+## Colored output
+
+Colored text output is disabled if any of the following conditions are met:
+
+- llscheck is not run from a terminal (TTY).
+- The [NO_COLOR](https://no-color.org/) environment variable is present and not empty.
+- The `--no-color` argument is provided.
 
 ## Docker
 
