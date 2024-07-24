@@ -252,7 +252,8 @@ local function main()
    local diagnosis = luals_check(args.workspace, args.checklevel, args.configpath)
    if diagnosis then
       local isatty = get_isatty()
-      if not isatty() or args.no_color or os.getenv("NO_COLOR") then
+      local no_color = os.getenv("NO_COLOR")
+      if not isatty() or args.no_color or (no_color and no_color ~= "") then
          colorize = function(msg)
             return msg
          end
