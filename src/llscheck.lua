@@ -213,7 +213,6 @@ end
 ---@return string? filepath Validated filepath
 ---@return string? error Error message
 local function validate_file(filepath)
-   filepath = path.abspath(filepath)
    if not path.exists(filepath) then
       return nil, string.format("'%s': No such file or directory", filepath)
    end
