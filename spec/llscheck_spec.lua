@@ -7,7 +7,7 @@ describe("llscheck", function()
    end)
 
    local sample_diagnosis = {
-      ["file:///test/main.lua"] = {
+      ["file://" .. path.abspath("test/main.lua")] = {
          {
             code = "unused-local",
             message = "Unused local variable 'foo'",
@@ -107,8 +107,8 @@ describe("llscheck", function()
 
       it("formats diagnostic lines correctly", function()
          local report = llscheck.generate_report(sample_diagnosis)
-         assert.matches("/test/main%.lua:1:7%-9: unused%-local", report)
-         assert.matches("/test/main%.lua:2:1%-3: undefined%-global", report)
+         assert.matches("test/main%.lua:1:7%-9: unused%-local", report)
+         assert.matches("test/main%.lua:2:1%-3: undefined%-global", report)
          assert.matches("Total 2: 1 Warnings / 1 Errors in 1 files", report)
       end)
 
@@ -117,7 +117,7 @@ describe("llscheck", function()
          local report = llscheck.generate_report(sample_diagnosis)
 
          -- Check for specific colored components
-         assert.matches("\27%[34m/test/main%.lua", report) -- blue filepath
+         assert.matches("\27%[34mtest/main%.lua", report) -- blue filepath
          assert.matches("\27%[33munused%-local", report) -- yellow warning
          assert.matches("\27%[31mundefined%-global", report) -- red error
          -- Verify reset codes
