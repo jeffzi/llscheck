@@ -109,7 +109,7 @@ describe("llscheck", function()
          local report = llscheck.generate_report(sample_diagnosis)
          assert.matches("test/main%.lua:1:7%-9: unused%-local", report)
          assert.matches("test/main%.lua:2:1%-3: undefined%-global", report)
-         assert.matches("Total 2: 1 Warnings / 1 Errors in 1 files", report)
+         assert.matches("Total 2: 1 Errors / 1 Warnings in 1 files", report)
       end)
 
       it("formats colored diagnostic lines correctly", function()
