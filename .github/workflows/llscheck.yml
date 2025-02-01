@@ -20,7 +20,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        luaVersion: ["5.4", "5.3", "5.2", "5.1", "luajit"]
+        # LuaJIT.org has stopped publishing release tarballs on their website.
+        # https://github.com/leafo/gh-actions-lua/issues/49
+        luaVersion: ["5.4", "5.3", "5.2", "5.1", "luajit-openresty"]
 
     runs-on: macos-latest
 
