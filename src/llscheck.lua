@@ -7,27 +7,16 @@ local utils = require("pl.utils")
 
 io.stdout:setvbuf("no")
 
----@enum SEVERITY
-local Severity = {
-   Error = 1,
-   Warning = 2,
-   Information = 3,
-   Hint = 4,
-}
+---@alias SeverityName "Error"|"Warning"|"Information"|"Hint"
 
-local SeverityName = {
-   "Error",
-   "Warning",
-   "Information",
-   "Hint",
-}
+---@class DiagnosisStats
+---@field total number Total number of diagnostic issues found
+---@field files number Number of files with issues
+---@field [SeverityName?] integer Count of diagnostic issues per severity level
 
-local SeverityColor = {
-   "red",
-   "yellow",
-   "white bright",
-   "white dim",
-}
+---@type SeverityName[]
+local SEVERITY = { "Error", "Warning", "Information", "Hint" }
+local SEVERITY_COLORS = { "red", "yellow", "white bright", "white dim" }
 
 ---Create a uniform isatty function.
 ---@return fun(): boolean
@@ -51,11 +40,23 @@ local function get_isatty()
    end
 end
 
----@param message string
----@param color string
----@return string
-local function colorize(message, color)
-   return ansicolors("%{" .. color .. "}" .. message .. "%{reset}")
+---@type fun(message: string, color?: string): string
+local colorize
+
+---@param no_color boolean
+local function setup_colorize(no_color)
+   local isatty = get_isatty()
+   local env_no_color = os.getenv("NO_COLOR")
+
+   if isatty() and not no_color and (not env_no_color or env_no_color == "") then
+      colorize = function(message, color)
+         return ansicolors("%{" .. color .. "}" .. message .. "%{reset}")
+      end
+   else
+      colorize = function(message)
+         return message
+      end
+   end
 end
 
 ---Parse a LuaLS diagnosis report check.json file.
@@ -63,31 +64,38 @@ end
 ---@return table
 local function read_diagnosis(filepath)
    local file = assert(io.open(filepath, "r"))
-   local raw_diagnosis = file:read("*a")
+   local content = file:read("*a")
    file:close()
-   return cjson.decode(raw_diagnosis)
+   return cjson.decode(content)
 end
 
 ---Execute the command and exit the program on error.
 ---@param cmd string
 local function execute(cmd)
-   local is_success, _, _, stderr = utils.executeex(cmd)
-   if not is_success then
-      local trimmed_stderr = stderr:gsub("^%s*(.-)%s*$", "%1")
-      local header = (colorize("Command failed: ", "red") .. colorize(cmd, "yellow"))
-      utils.quit(-1, header .. "\n" .. trimmed_stderr)
+   local ok, _, _, stderr = utils.executeex(cmd)
+   if not ok then
+      utils.quit(
+         -1,
+         string.format(
+            "%s%s\n%s",
+            colorize("Command failed: ", "red"),
+            colorize(cmd, "yellow"),
+            stderr:match("^%s*(.-)%s*$")
+         )
+      )
    end
 end
 
----Run `lua-language-server --check` to perform a diganosis report
----@param workspace table A list of source files (or directories) to check.
----@param checklevel string One of: Error, Warning, Information, Hint
+---Run lua-language-server --check command.
+---@param workspace string A workspace to check.
+---@param checklevel string One of: ERROR, WARNING, INFO, HINT
 ---@param configpath string LuaLS configpath argument
 ---@return table? The parsed diagnosis report (check.json).
-local function luals_check(workspace, checklevel, configpath)
+local function check_workspace(workspace, checklevel, configpath)
    local logpath = path.tmpname()
    os.remove(logpath)
    local diagnosis_path = path.join(logpath, "check.json")
+
    local args = {
       "--check",
       workspace,
@@ -97,20 +105,22 @@ local function luals_check(workspace, checklevel, configpath)
       logpath,
    }
    if configpath then
-      table.insert(args, { "--configpath", configpath })
+      table.insert(args, "--configpath")
+      table.insert(args, configpath)
    end
-   local lls_cmd = "lua-language-server " .. utils.quote_arg(args)
-   execute(lls_cmd)
+
+   execute("lua-language-server " .. utils.quote_arg(args))
 
    if path.exists(diagnosis_path) then
       return read_diagnosis(diagnosis_path)
    end
 end
 
----Return a human-friendly LuaLS diagnosis report (1 line).
+---Format diagnostic location and message.
 ---@param filepath string
 ---@param diagnostic table
-local function make_diagnostic_line(filepath, diagnostic)
+---@return string
+local function format_diagnostic_line(filepath, diagnostic)
    local colon = colorize(":", "white dim")
    local loc = string.format(
       "%s%s%d%s%d%s%d",
@@ -122,96 +132,101 @@ local function make_diagnostic_line(filepath, diagnostic)
       colorize("-", "white dim"),
       diagnostic.range["end"].character
    )
+
+   local severity_color = SEVERITY_COLORS[diagnostic.severity]
    local msg = diagnostic.message
-   local severity = diagnostic.severity
+
    return string.format(
       "%s%s %s%s %s",
       loc,
       colon,
-      colorize(diagnostic.code, SeverityColor[severity]),
+      colorize(diagnostic.code, severity_color),
       colon,
-      severity == Severity.Hint and colorize(msg, SeverityColor[severity]) or msg
+      diagnostic.severity == 4 and colorize(msg, severity_color) or msg
    )
 end
 
-local function colorized_count(severity_name, count)
-   local color = count > 0 and (SeverityColor[Severity[severity_name]] or "white") or "green"
-   local msg = string.format("%s %ss", count, severity_name)
-   return colorize(msg, color)
-end
-
----Return a summary of the diagnostics
----@param stats table Counts of diagnostics indexed by severity name
+---Format count of issues by severity.
+---@param name SeverityName
+---@param severity integer
+---@param count number
 ---@return string
-local function make_summary(stats)
-   local summary
-   local total = stats["total"]
-   if total == 0 then
-      summary = "No issues found!"
-   else
-      local severities = {}
-      for _, severity_name in ipairs(SeverityName) do
-         local count = stats[severity_name]
-         if count then
-            table.insert(severities, colorized_count(severity_name, stats[severity_name]))
-         end
-      end
-      summary = string.format(
-         "\n%s: %s in %d files",
-         colorize("Total " .. total, "white bright"),
-         table.concat(severities, " / "),
-         stats["files"]
-      )
-   end
-   return summary
+local function colorized_count(name, severity, count)
+   local color = count > 0 and (SEVERITY_COLORS[severity] or "white") or "green"
+   return colorize(string.format("%d %ss", count, name), color)
 end
 
----Compare diagnostic lines for sorting
+---Generate diagnostic summary.
+---@param stats DiagnosisStats Counts of diagnostics indexed by severity name
+---@return string
+local function generate_summary(stats)
+   if stats.total == 0 then
+      return "Diagnosis completed, no problems found"
+   end
+
+   local severities = {}
+   for severity, name in ipairs(SEVERITY) do
+      local count = stats[name]
+      if count then
+         table.insert(severities, colorized_count(name, severity, count))
+      end
+   end
+
+   return string.format(
+      "\n%s: %s in %d files",
+      colorize("Total " .. stats.total, "white bright"),
+      table.concat(severities, " / "),
+      stats.files
+   )
+end
+
+---Compare diagnostic entries for sorting.
 ---@param x table
 ---@param y table
 ---@return boolean
 local function compare_diagnostics(x, y)
-   local x_line = x.range.start.line
-   local y_line = y.range.start.line
+   local x_line, y_line = x.range.start.line, y.range.start.line
    if x_line ~= y_line then
       return x_line < y_line
    end
 
-   local x_character = x.range.start.character
-   local y_character = y.range.start.character
-   if x_character ~= y_character then
-      return x_character < y_character
+   local x_char, y_char = x.range.start.character, y.range.start.character
+   if x_char ~= y_char then
+      return x_char < y_char
    end
 
    return x.severity < y.severity
 end
 
----Return a human-friendly LuaLS diagnosis report.
+---Generate human-friendly diagnosis report.
 ---@param diagnosis table Array of parsed diagnosis reports (check.json files).
----@return string report Hhuman-friendly LuaLS diagnosis report
----@return table stats Counts of diagnostics indexed by severity name
-local function make_report(diagnosis)
+---@return string report Human-friendly LuaLS diagnosis report
+---@return DiagnosisStats stats Counts of diagnostics indexed by severity name
+local function generate_report(diagnosis)
    local stats = { total = 0, files = 0 }
    local lines = {}
+
    for filepath, diagnostics in tablex.sort(diagnosis) do
-      stats["files"] = stats["files"] + 1
+      stats.files = stats.files + 1
       filepath = filepath:gsub("file://", "")
       filepath = path.relpath(filepath)
+
       for _, diagnostic in tablex.sortv(diagnostics, compare_diagnostics) do
-         table.insert(lines, make_diagnostic_line(filepath, diagnostic))
-         local severity_name = SeverityName[diagnostic.severity]
+         table.insert(lines, format_diagnostic_line(filepath, diagnostic))
+         local severity_name = SEVERITY[diagnostic.severity]
          stats[severity_name] = (stats[severity_name] or 0) + 1
-         stats["total"] = stats["total"] + 1
+         stats.total = stats.total + 1
       end
    end
-   table.insert(lines, make_summary(stats))
+
+   table.insert(lines, generate_summary(stats))
    return table.concat(lines, "\n"), stats
 end
 
----Validate that filepath exists and convert it to absolute path.
+---Validate file existence and return absolute path.
 ---@param filepath string
 ---@return string? filepath Validated filepath
----@return string? error Error message
+---@return string? error ERROR message
 local function validate_file(filepath)
    if not path.exists(filepath) then
       return nil, string.format("'%s': No such file or directory", filepath)
@@ -219,49 +234,41 @@ local function validate_file(filepath)
    return filepath
 end
 
----Return default configpath if it exists
+---Get default config path if it exists.
 ---@return string?
 local function get_default_configpath()
    local default = path.join(path.currentdir(), ".luarc.json")
-   if path.exists(default) then
-      -- LuaLS has troubles dealing with non-absolute configpath.
-      -- https://github.com/LuaLS/lua-language-server/issues/2038
-      return path.abspath(default)
-   else
-      return nil
-   end
+   return path.exists(default) and path.abspath(default) or nil
 end
 
 local function main()
-   local desc = "Generate a LuaLS diagnosis report and print to human-friendly format."
-   local parser = argparse("llscheck", desc):add_complete()
+   local parser = argparse(
+      "llscheck",
+      "Generate a LuaLS diagnosis report and print to human-friendly format."
+   ):add_complete()
+
    parser:argument("workspace", "The workspace to check."):default("."):convert(validate_file)
+
    parser
       :option("--checklevel", "The minimum level of diagnostic that should be logged.")
-      :choices({ "Error", "Warning", "Information", "Hint" })
+      :choices(SEVERITY)
       :default("Warning")
+
    parser
       :option("--configpath", "Path to a LuaLS config file.")
       :default(get_default_configpath())
       :convert(validate_file)
+
    parser:flag("--no-color", "Do not add color to output.")
 
    local args = parser:parse()
+   setup_colorize(args.no_color)
 
-   local diagnosis = luals_check(args.workspace, args.checklevel, args.configpath)
+   local diagnosis = check_workspace(args.workspace, args.checklevel, args.configpath)
    if diagnosis then
-      local isatty = get_isatty()
-      local no_color = os.getenv("NO_COLOR")
-      if not isatty() or args.no_color or (no_color and no_color ~= "") then
-         colorize = function(msg)
-            return msg
-         end
-      end
-      local report, diagnostics = make_report(diagnosis)
+      local report, stats = generate_report(diagnosis)
       io.stdout:write(report .. "\n")
-      if diagnostics["total"] > 0 then
-         os.exit(1)
-      end
+      os.exit(stats.total > 0 and 1 or 0)
    end
 end
 
