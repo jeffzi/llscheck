@@ -7,15 +7,63 @@ local utils = require("pl.utils")
 
 io.stdout:setvbuf("no")
 
----@alias SeverityName "Error"|"Warning"|"Information"|"Hint"
+-- ----------------------------------------------------------------------------
+-- Typing
+-- ----------------------------------------------------------------------------
 
----@class DiagnosisStats
----@field total number Total number of diagnostic issues found
----@field files number Number of files with issues
----@field [SeverityName?] integer Count of diagnostic issues per severity level
+---@alias SeverityName
+---| 'Hint'
+---| 'Information'
+---| 'Warning'
+---| 'Error'
+
+---@alias SeverityLevel
+---| 4
+---| 3
+---| 2
+---| 1
+
+---@type table<SeverityName, SeverityLevel>
+local SEVERITY = {
+   Error = 1,
+   Warning = 2,
+   Information = 3,
+   Hint = 4,
+}
 
 ---@type SeverityName[]
-local SEVERITY = { "Error", "Warning", "Information", "Hint" }
+local SEVERITY_NAMES = {}
+for name, level in pairs(SEVERITY) do
+   SEVERITY_NAMES[level] = name
+end
+
+---@class Position
+---@field line integer
+---@field character integer
+
+---@class Range
+---@field start Position
+---@field ["end"] Position
+
+---@class Diagnostic
+---@field code string
+---@field message string
+---@field range Range
+---@field severity SeverityLevel
+
+---@alias URI string
+---@alias Diagnosis table<URI, Diagnostic[]> Content of check.json
+
+---@class Stats
+---@field total number Total number of diagnostic issues found
+---@field files number Number of files with issues
+---@field [SeverityLevel?] integer Count of diagnostic issues per severity level
+
+-- ----------------------------------------------------------------------------
+-- Colors
+-- ----------------------------------------------------------------------------
+
+---@type table<SeverityLevel, string>
 local SEVERITY_COLORS = { "red", "yellow", "white bright", "white dim" }
 
 ---Create a uniform isatty function.
@@ -59,15 +107,9 @@ local function setup_colorize(no_color)
    end
 end
 
----Parse a LuaLS diagnosis report check.json file.
----@param filepath string
----@return table
-local function read_diagnosis(filepath)
-   local file = assert(io.open(filepath, "r"))
-   local content = file:read("*a")
-   file:close()
-   return cjson.decode(content)
-end
+-- ----------------------------------------------------------------------------
+-- Execute LuaLS
+-- ----------------------------------------------------------------------------
 
 ---Execute the command and exit the program on error.
 ---@param cmd string
@@ -86,11 +128,20 @@ local function execute(cmd)
    end
 end
 
+---@param filepath string
+---@return table<URI, Diagnostic[]>
+local function read_diagnosis(filepath)
+   local file = assert(io.open(filepath, "r"))
+   local content = file:read("*a")
+   file:close()
+   return cjson.decode(content)
+end
+
 ---Run lua-language-server --check command.
----@param workspace string A workspace to check.
----@param checklevel string One of: ERROR, WARNING, INFO, HINT
+---@param workspace string
+---@param checklevel SeverityName
 ---@param configpath string LuaLS configpath argument
----@return table? The parsed diagnosis report (check.json).
+---@return Diagnosis? diagnosis
 local function check_workspace(workspace, checklevel, configpath)
    local logpath = path.tmpname()
    os.remove(logpath)
@@ -116,9 +167,12 @@ local function check_workspace(workspace, checklevel, configpath)
    end
 end
 
----Format diagnostic location and message.
+-- ----------------------------------------------------------------------------
+-- Format diagnosis
+-- ----------------------------------------------------------------------------
+
 ---@param filepath string
----@param diagnostic table
+---@param diagnostic Diagnostic
 ---@return string
 local function format_diagnostic_line(filepath, diagnostic)
    local colon = colorize(":", "white dim")
@@ -142,22 +196,20 @@ local function format_diagnostic_line(filepath, diagnostic)
       colon,
       colorize(diagnostic.code, severity_color),
       colon,
-      diagnostic.severity == 4 and colorize(msg, severity_color) or msg
+      diagnostic.severity == SEVERITY.Hint and colorize(msg, severity_color) or msg
    )
 end
 
 ---Format count of issues by severity.
----@param name SeverityName
----@param severity integer
----@param count number
+---@param severity_name SeverityName
+---@param count integer
 ---@return string
-local function colorized_count(name, severity, count)
-   local color = count > 0 and (SEVERITY_COLORS[severity] or "white") or "green"
-   return colorize(string.format("%d %ss", count, name), color)
+local function colorized_count(severity_name, count)
+   local color = count > 0 and (SEVERITY_COLORS[SEVERITY[severity_name]] or "white") or "green"
+   return colorize(string.format("%d %ss", count, severity_name), color)
 end
 
----Generate diagnostic summary.
----@param stats DiagnosisStats Counts of diagnostics indexed by severity name
+---@param stats Stats
 ---@return string
 local function generate_summary(stats)
    if stats.total == 0 then
@@ -165,10 +217,10 @@ local function generate_summary(stats)
    end
 
    local severities = {}
-   for severity, name in ipairs(SEVERITY) do
-      local count = stats[name]
+   for name, level in pairs(SEVERITY) do
+      local count = stats[level]
       if count then
-         table.insert(severities, colorized_count(name, severity, count))
+         table.insert(severities, colorized_count(name, count))
       end
    end
 
@@ -180,9 +232,8 @@ local function generate_summary(stats)
    )
 end
 
----Compare diagnostic entries for sorting.
----@param x table
----@param y table
+---@param x Diagnostic
+---@param y Diagnostic
 ---@return boolean
 local function compare_diagnostics(x, y)
    local x_line, y_line = x.range.start.line, y.range.start.line
@@ -198,9 +249,8 @@ local function compare_diagnostics(x, y)
    return x.severity < y.severity
 end
 
----Convert a file URI to a local file path.
----@param uri string The file URI to convert
----@return string filepath The local file path
+---@param uri string
+---@return string filepath
 local function uri_to_path(uri)
    local filepath = uri:gsub("^file:///?(%a?:?/)", "%1")
    -- Decode percent-encoded characters
@@ -211,9 +261,9 @@ local function uri_to_path(uri)
 end
 
 ---Generate human-friendly diagnosis report.
----@param diagnosis table Array of parsed diagnosis reports (check.json files).
+---@param diagnosis Diagnosis
 ---@return string report Human-friendly LuaLS diagnosis report
----@return DiagnosisStats stats Counts of diagnostics indexed by severity name
+---@return Stats stats Counts of diagnostics indexed by severity name
 local function generate_report(diagnosis)
    local stats = { total = 0, files = 0 }
    local lines = {}
@@ -224,8 +274,7 @@ local function generate_report(diagnosis)
 
       for _, diagnostic in tablex.sortv(diagnostics, compare_diagnostics) do
          table.insert(lines, format_diagnostic_line(filepath, diagnostic))
-         local severity_name = SEVERITY[diagnostic.severity]
-         stats[severity_name] = (stats[severity_name] or 0) + 1
+         stats[diagnostic.severity] = (stats[diagnostic.severity] or 0) + 1
          stats.total = stats.total + 1
       end
    end
@@ -233,6 +282,10 @@ local function generate_report(diagnosis)
    table.insert(lines, generate_summary(stats))
    return table.concat(lines, "\n"), stats
 end
+
+-- ----------------------------------------------------------------------------
+-- CLI
+-- ----------------------------------------------------------------------------
 
 ---Validate file existence and return absolute path.
 ---@param filepath string
@@ -262,7 +315,7 @@ local function main()
 
    parser
       :option("--checklevel", "The minimum level of diagnostic that should be logged.")
-      :choices(SEVERITY)
+      :choices(SEVERITY_NAMES)
       :default("Warning")
 
    parser
