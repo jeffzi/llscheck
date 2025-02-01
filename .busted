@@ -1,0 +1,8 @@
+return {
+   _all = {
+      verbose = true,
+      output = "gtest",
+      sort_files = true,
+      lpath = "./src/?.lua;./src/?/init.lua",
+   },
+}
