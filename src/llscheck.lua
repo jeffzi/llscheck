@@ -7,6 +7,8 @@ local utils = require("pl.utils")
 
 io.stdout:setvbuf("no")
 
+local llscheck = {}
+
 -- ----------------------------------------------------------------------------
 -- Typing
 -- ----------------------------------------------------------------------------
@@ -66,7 +68,7 @@ end
 ---@type table<SeverityLevel, string>
 local SEVERITY_COLORS = { "red", "yellow", "white bright", "white dim" }
 
----Create a uniform isatty function.
+--- Create a uniform isatty function.
 ---@return fun(): boolean
 local function get_isatty()
    local system_loaded, system = pcall(require, "system")
@@ -91,12 +93,19 @@ end
 ---@type fun(message: string, color?: string): string
 local colorize
 
----@param no_color boolean
-local function setup_colorize(no_color)
+--- Set up whether to use ANSI colors for output messages based on:
+--- - Whether color output is explicitly enabled/disabled via the show_color parameter
+--- - Whether the output is going to a terminal (TTY)
+--- - Whether the NO_COLOR environment variable is set (https://no-color.org/)
+---@param show_color? boolean Whether to enable colored output. Defaults to true if nil.
+function llscheck.setup_colorize(show_color)
+   if show_color == nil then
+      show_color = true
+   end
    local isatty = get_isatty()
-   local env_no_color = os.getenv("NO_COLOR")
+   local no_color = os.getenv("NO_COLOR")
 
-   if isatty() and not no_color and (not env_no_color or env_no_color == "") then
+   if isatty() and show_color and (not no_color or no_color == "") then
       colorize = function(message, color)
          return ansicolors("%{" .. color .. "}" .. message .. "%{reset}")
       end
@@ -111,7 +120,7 @@ end
 -- Execute LuaLS
 -- ----------------------------------------------------------------------------
 
----Execute the command and exit the program on error.
+--- Execute the command and exit the program on error.
 ---@param cmd string
 local function execute(cmd)
    local ok, _, _, stderr = utils.executeex(cmd)
@@ -137,12 +146,12 @@ local function read_diagnosis(filepath)
    return cjson.decode(content)
 end
 
----Run lua-language-server --check command.
+--- Run lua-language-server --check command.
 ---@param workspace string
 ---@param checklevel SeverityName
 ---@param configpath string LuaLS configpath argument
 ---@return Diagnosis? diagnosis
-local function check_workspace(workspace, checklevel, configpath)
+function llscheck.check_workspace(workspace, checklevel, configpath)
    local logpath = path.tmpname()
    os.remove(logpath)
    local diagnosis_path = path.join(logpath, "check.json")
@@ -200,7 +209,7 @@ local function format_diagnostic_line(filepath, diagnostic)
    )
 end
 
----Format count of issues by severity.
+--- Format count of issues by severity.
 ---@param severity_name SeverityName
 ---@param count integer
 ---@return string
@@ -232,10 +241,11 @@ local function generate_summary(stats)
    )
 end
 
----@param x Diagnostic
----@param y Diagnostic
----@return boolean
-local function compare_diagnostics(x, y)
+--- Compare two diagnostics based on their position and severity.
+--- @param x Diagnostic
+--- @param y Diagnostic
+--- @return boolean Returns
+function llscheck.compare_diagnostics(x, y)
    local x_line, y_line = x.range.start.line, y.range.start.line
    if x_line ~= y_line then
       return x_line < y_line
@@ -249,9 +259,10 @@ local function compare_diagnostics(x, y)
    return x.severity < y.severity
 end
 
----@param uri string
----@return string filepath
-local function uri_to_path(uri)
+--- Convert a URI to a file path.
+--- @param uri string The URI to convert.
+--- @return string filepath The resulting file path
+function llscheck.uri_to_path(uri)
    local filepath = uri:gsub("^file:///?(%a?:?/)", "%1")
    -- Decode percent-encoded characters
    filepath = filepath:gsub("%%(%x%x)", function(hex)
@@ -260,19 +271,19 @@ local function uri_to_path(uri)
    return filepath
 end
 
----Generate human-friendly diagnosis report.
+--- Generate human-friendly diagnosis report.
 ---@param diagnosis Diagnosis
 ---@return string report Human-friendly LuaLS diagnosis report
 ---@return Stats stats Counts of diagnostics indexed by severity name
-local function generate_report(diagnosis)
+function llscheck.generate_report(diagnosis)
    local stats = { total = 0, files = 0 }
    local lines = {}
 
    for uri, diagnostics in tablex.sort(diagnosis) do
       stats.files = stats.files + 1
-      local filepath = path.relpath(uri_to_path(uri))
+      local filepath = llscheck.uri_to_path(uri)
 
-      for _, diagnostic in tablex.sortv(diagnostics, compare_diagnostics) do
+      for _, diagnostic in tablex.sortv(diagnostics, llscheck.compare_diagnostics) do
          table.insert(lines, format_diagnostic_line(filepath, diagnostic))
          stats[diagnostic.severity] = (stats[diagnostic.severity] or 0) + 1
          stats.total = stats.total + 1
@@ -305,7 +316,7 @@ local function get_default_configpath()
    return path.exists(default) and path.abspath(default) or nil
 end
 
-local function main()
+local function run()
    local parser = argparse(
       "llscheck",
       "Generate a LuaLS diagnosis report and print to human-friendly format."
@@ -326,14 +337,21 @@ local function main()
    parser:flag("--no-color", "Do not add color to output.")
 
    local args = parser:parse()
-   setup_colorize(args.no_color)
+   llscheck.setup_colorize(not args.no_color)
 
-   local diagnosis = check_workspace(args.workspace, args.checklevel, args.configpath)
+   local diagnosis = llscheck.check_workspace(args.workspace, args.checklevel, args.configpath)
    if diagnosis then
-      local report, stats = generate_report(diagnosis)
+      local report, stats = llscheck.generate_report(diagnosis)
       io.stdout:write(report .. "\n")
       os.exit(stats.total > 0 and 1 or 0)
    end
 end
 
-main()
+-- Only run the CLI if this file is being run directly (not required as a module)
+if arg and arg[0]:match("llscheck") then
+   run()
+end
+
+llscheck.setup_colorize(true)
+
+return llscheck
