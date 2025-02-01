@@ -57,8 +57,8 @@ end
 ---@alias Diagnosis table<URI, Diagnostic[]> Content of check.json
 
 ---@class Stats
----@field total number Total number of diagnostic issues found
----@field files number Number of files with issues
+---@field total integer Total number of diagnostic issues found
+---@field files integer Number of files with issues
 ---@field [SeverityLevel?] integer Count of diagnostic issues per severity level
 
 -- ----------------------------------------------------------------------------
@@ -248,7 +248,7 @@ function llscheck.uri_to_path(uri)
    return filepath
 end
 
----@param stats Stats
+---@param stats table<SeverityName, integer>
 ---@return string[]
 local function get_colored_severities(stats)
    local severities = {}
@@ -282,7 +282,7 @@ end
 ---@return string report Human-friendly LuaLS diagnosis report
 ---@return Stats stats Counts of diagnostics indexed by severity name
 function llscheck.generate_report(diagnosis)
-   local stats = { total = 0, files = 0 }
+   local total_stats = { total = 0, files = 0 }
    local lines = {}
 
    -- Calculate target summary column for alignment
@@ -296,29 +296,34 @@ function llscheck.generate_report(diagnosis)
    -- Generate report lines
    for uri, diagnostics in tablex.sort(diagnosis) do
       local filepath = path.relpath(llscheck.uri_to_path(uri))
-      stats.files = stats.files + 1
+      total_stats.files = total_stats.files + 1
 
-      -- File header with severities
+      local file_stats = {}
+      local diagnostic_lines = {}
+      for _, diagnostic in tablex.sortv(diagnostics, llscheck.compare_diagnostics) do
+         table.insert(diagnostic_lines, format_diagnostic_line(filepath, diagnostic))
+         file_stats[diagnostic.severity] = (file_stats[diagnostic.severity] or 0) + 1
+
+         total_stats[diagnostic.severity] = (total_stats[diagnostic.severity] or 0) + 1
+         total_stats.total = total_stats.total + 1
+      end
+
       local padding = string.rep(" ", target_column - #filepath - 1)
       local header = string.format(
-         "%s:%s%s\n",
+         "\n%s:%s%s\n",
          colorize(filepath, "underline blue"),
          padding,
-         table.concat(get_colored_severities(stats), " / ")
+         table.concat(get_colored_severities(file_stats), " / ")
       )
-      table.insert(lines, header)
 
-      -- Diagnostic lines
-      for _, diagnostic in tablex.sortv(diagnostics, llscheck.compare_diagnostics) do
-         table.insert(lines, format_diagnostic_line(filepath, diagnostic))
-         stats[diagnostic.severity] = (stats[diagnostic.severity] or 0) + 1
-         stats.total = stats.total + 1
+      table.insert(lines, header)
+      for _, line in ipairs(diagnostic_lines) do
+         table.insert(lines, line)
       end
-      table.insert(lines, "\n")
    end
 
-   table.insert(lines, generate_summary(stats))
-   return table.concat(lines, "\n"):gsub("\n\n", "\n"), stats
+   table.insert(lines, generate_summary(total_stats))
+   return table.concat(lines, "\n"), total_stats
 end
 
 -- ----------------------------------------------------------------------------
