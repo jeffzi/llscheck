@@ -43,7 +43,7 @@ jobs:
           luaVersion: ${{ matrix.luaVersion }}
 
       - name: Setup LuaRocks
-        uses: leafo/gh-actions-luarocks@v4
+        uses: luarocks/gh-actions-luarocks@v5
 
       - name: Install dependencies
         run: luarocks install --deps-only llscheck-dev-1.rockspec
