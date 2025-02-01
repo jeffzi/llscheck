@@ -55,6 +55,10 @@ Options:
    --no-color            Do not add color to output.
 ```
 
+### Neovim
+
+See [examples/neovim](examples/neovim/README.md) for using llscheck with Neovim projects
+
 ## Colored output
 
 Colored text output is disabled if any of the following conditions are met:
