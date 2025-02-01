@@ -187,7 +187,7 @@ local function format_diagnostic_line(filepath, diagnostic)
    local colon = colorize(":", "white dim")
    local loc = string.format(
       "%s%s%d%s%d%s%d",
-      colorize(filepath, "blue"),
+      filepath,
       colon,
       diagnostic.range.start.line + 1,
       colon,
@@ -216,29 +216,6 @@ end
 local function colorized_count(severity_name, count)
    local color = count > 0 and (SEVERITY_COLORS[SEVERITY[severity_name]] or "white") or "green"
    return colorize(string.format("%d %ss", count, severity_name), color)
-end
-
----@param stats Stats
----@return string
-local function generate_summary(stats)
-   if stats.total == 0 then
-      return "Diagnosis completed, no problems found"
-   end
-
-   local severities = {}
-   for name, level in pairs(SEVERITY) do
-      local count = stats[level]
-      if count then
-         table.insert(severities, colorized_count(name, count))
-      end
-   end
-
-   return string.format(
-      "\n%s: %s in %d files",
-      colorize("Total " .. stats.total, "white bright"),
-      table.concat(severities, " / "),
-      stats.files
-   )
 end
 
 --- Compare two diagnostics based on their position and severity.
@@ -271,6 +248,35 @@ function llscheck.uri_to_path(uri)
    return filepath
 end
 
+---@param stats Stats
+---@return string[]
+local function get_colored_severities(stats)
+   local severities = {}
+   for level, name in ipairs(SEVERITY_NAMES) do
+      local count = stats[level]
+      local colored = count and colorized_count(name, count) or nil
+      if colored then
+         table.insert(severities, colored)
+      end
+   end
+   return severities
+end
+
+---@param stats Stats
+---@return string
+local function generate_summary(stats)
+   if stats.total == 0 then
+      return "Diagnosis completed, no problems found"
+   end
+
+   return string.format(
+      "%s: %s in %d files",
+      colorize("Total " .. stats.total, "white bright"),
+      table.concat(get_colored_severities(stats), " / "),
+      stats.files
+   )
+end
+
 --- Generate human-friendly diagnosis report.
 ---@param diagnosis Diagnosis
 ---@return string report Human-friendly LuaLS diagnosis report
@@ -279,19 +285,40 @@ function llscheck.generate_report(diagnosis)
    local stats = { total = 0, files = 0 }
    local lines = {}
 
-   for uri, diagnostics in tablex.sort(diagnosis) do
-      stats.files = stats.files + 1
+   -- Calculate target summary column for alignment
+   local max_filename_length = 0
+   for uri in pairs(diagnosis) do
       local filepath = path.relpath(llscheck.uri_to_path(uri))
+      max_filename_length = math.max(max_filename_length, #filepath + 1)
+   end
+   local target_column = math.min(max_filename_length + 5, 50)
 
+   -- Generate report lines
+   for uri, diagnostics in tablex.sort(diagnosis) do
+      local filepath = path.relpath(llscheck.uri_to_path(uri))
+      stats.files = stats.files + 1
+
+      -- File header with severities
+      local padding = string.rep(" ", target_column - #filepath - 1)
+      local header = string.format(
+         "%s:%s%s\n",
+         colorize(filepath, "underline blue"),
+         padding,
+         table.concat(get_colored_severities(stats), " / ")
+      )
+      table.insert(lines, header)
+
+      -- Diagnostic lines
       for _, diagnostic in tablex.sortv(diagnostics, llscheck.compare_diagnostics) do
          table.insert(lines, format_diagnostic_line(filepath, diagnostic))
          stats[diagnostic.severity] = (stats[diagnostic.severity] or 0) + 1
          stats.total = stats.total + 1
       end
+      table.insert(lines, "\n")
    end
 
    table.insert(lines, generate_summary(stats))
-   return table.concat(lines, "\n"), stats
+   return table.concat(lines, "\n"):gsub("\n\n", "\n"), stats
 end
 
 -- ----------------------------------------------------------------------------
