@@ -198,6 +198,18 @@ local function compare_diagnostics(x, y)
    return x.severity < y.severity
 end
 
+---Convert a file URI to a local file path.
+---@param uri string The file URI to convert
+---@return string filepath The local file path
+local function uri_to_path(uri)
+   local filepath = uri:gsub("^file:///?(%a?:?/)", "%1")
+   -- Decode percent-encoded characters
+   filepath = filepath:gsub("%%(%x%x)", function(hex)
+      return string.char(tonumber(hex, 16))
+   end)
+   return filepath
+end
+
 ---Generate human-friendly diagnosis report.
 ---@param diagnosis table Array of parsed diagnosis reports (check.json files).
 ---@return string report Human-friendly LuaLS diagnosis report
@@ -206,10 +218,9 @@ local function generate_report(diagnosis)
    local stats = { total = 0, files = 0 }
    local lines = {}
 
-   for filepath, diagnostics in tablex.sort(diagnosis) do
+   for uri, diagnostics in tablex.sort(diagnosis) do
       stats.files = stats.files + 1
-      filepath = filepath:gsub("file://", "")
-      filepath = path.relpath(filepath)
+      local filepath = path.relpath(uri_to_path(uri))
 
       for _, diagnostic in tablex.sortv(diagnostics, compare_diagnostics) do
          table.insert(lines, format_diagnostic_line(filepath, diagnostic))
