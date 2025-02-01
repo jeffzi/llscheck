@@ -281,7 +281,7 @@ function llscheck.generate_report(diagnosis)
 
    for uri, diagnostics in tablex.sort(diagnosis) do
       stats.files = stats.files + 1
-      local filepath = llscheck.uri_to_path(uri)
+      local filepath = path.relpath(llscheck.uri_to_path(uri))
 
       for _, diagnostic in tablex.sortv(diagnostics, llscheck.compare_diagnostics) do
          table.insert(lines, format_diagnostic_line(filepath, diagnostic))
