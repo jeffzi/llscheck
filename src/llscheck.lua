@@ -120,23 +120,6 @@ end
 -- Execute LuaLS
 -- ----------------------------------------------------------------------------
 
---- Execute the command and exit the program on error.
----@param cmd string
-local function execute(cmd)
-   local ok, _, _, stderr = utils.executeex(cmd)
-   if not ok then
-      utils.quit(
-         -1,
-         string.format(
-            "%s%s\n%s",
-            colorize("Command failed: ", "red"),
-            colorize(cmd, "yellow"),
-            stderr:match("^%s*(.-)%s*$")
-         )
-      )
-   end
-end
-
 ---@param filepath string
 ---@return table<URI, Diagnostic[]>
 local function read_diagnosis(filepath)
@@ -163,15 +146,31 @@ function llscheck.check_workspace(workspace, checklevel, configpath)
       checklevel,
       "--logpath",
       logpath,
+      "--check_format",
+      "json",
    }
    if configpath then
       table.insert(args, "--configpath")
       table.insert(args, configpath)
    end
 
-   execute("lua-language-server " .. utils.quote_arg(args))
+   local cmd = "lua-language-server " .. utils.quote_arg(args)
+   local ok, _, _, stderr = utils.executeex(cmd)
+   local has_diagnosis = path.exists(diagnosis_path)
 
-   if path.exists(diagnosis_path) then
+   if not ok and not has_diagnosis then
+      utils.quit(
+         -1,
+         string.format(
+            "%s%s\n%s",
+            colorize("Command failed: ", "red"),
+            colorize(cmd, "yellow"),
+            stderr:match("^%s*(.-)%s*$")
+         )
+      )
+   end
+
+   if has_diagnosis then
       return read_diagnosis(diagnosis_path)
    end
 end
