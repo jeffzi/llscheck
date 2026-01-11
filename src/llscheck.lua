@@ -39,6 +39,9 @@ for name, level in pairs(SEVERITY) do
    SEVERITY_NAMES[level] = name
 end
 
+-- Maximum column position for file summary alignment (prevents excessive padding on long paths)
+local MAX_SUMMARY_COLUMN = 50
+
 ---@class Position
 ---@field line integer
 ---@field character integer
@@ -93,25 +96,43 @@ end
 ---@type fun(message: string, color?: string): string
 local colorize
 
---- Set up whether to use ANSI colors for output messages based on:
+---@type fun(text: string, uri: string): string
+local hyperlink
+
+--- Set up whether to use ANSI colors and hyperlinks for output messages based on:
 --- - Whether color output is explicitly enabled/disabled via the show_color parameter
 --- - Whether the output is going to a terminal (TTY)
 --- - Whether the NO_COLOR environment variable is set (https://no-color.org/)
----@param show_color? boolean Whether to enable colored output. Defaults to true if nil.
+---@param show_color? boolean Whether to enable colored output. nil = auto-detect, true = force on, false = force off.
 function llscheck.setup_colorize(show_color)
-   if show_color == nil then
-      show_color = true
-   end
    local isatty = get_isatty()
    local no_color = os.getenv("NO_COLOR")
+   local use_color
 
-   if isatty() and show_color and (not no_color or no_color == "") then
+   if show_color == true then
+      -- Explicit true: enable colors/hyperlinks (bypasses isatty check, still respects NO_COLOR)
+      use_color = not no_color or no_color == ""
+   elseif show_color == false then
+      use_color = false
+   else
+      -- nil/default: auto-detect based on TTY and NO_COLOR
+      use_color = isatty() and (not no_color or no_color == "")
+   end
+
+   if use_color then
       colorize = function(message, color)
-         return ansicolors("%{" .. color .. "}" .. message .. "%{reset}")
+         return ansicolors(string.format("%%{%s}%s%%{reset}", color, message))
+      end
+      -- OSC 8 hyperlink: \033]8;;URI\033\\text\033]8;;\033\\
+      hyperlink = function(text, uri)
+         return string.format("\027]8;;%s\027\\%s\027]8;;\027\\", uri, text)
       end
    else
       colorize = function(message)
          return message
+      end
+      hyperlink = function(text)
+         return text
       end
    end
 end
@@ -124,8 +145,11 @@ end
 ---@return table<URI, Diagnostic[]>
 local function read_diagnosis(filepath)
    local file = assert(io.open(filepath, "r"))
-   local content = file:read("*a")
+   local ok, content = pcall(file.read, file, "*a")
    file:close()
+   if not ok then
+      error(string.format("Failed to read %s: %s", filepath, content))
+   end
    return cjson.decode(content)
 end
 
@@ -179,32 +203,48 @@ end
 -- Format diagnosis
 -- ----------------------------------------------------------------------------
 
----@param filepath string
+--- Format diagnostic location as "line:col-end".
 ---@param diagnostic Diagnostic
 ---@return string
-local function format_diagnostic_line(filepath, diagnostic)
-   local colon = colorize(":", "white dim")
-   local loc = string.format(
-      "%s%s%d%s%d%s%d",
-      filepath,
-      colon,
+local function format_location(diagnostic)
+   return string.format(
+      "%d:%d-%d",
       diagnostic.range.start.line + 1,
-      colon,
       diagnostic.range.start.character + 1,
-      colorize("-", "white dim"),
       diagnostic.range["end"].character
    )
+end
 
+---@param diagnostic Diagnostic
+---@param max_loc_width integer Maximum width of location string for alignment
+---@param filepath string Absolute file path for hyperlink
+---@return string
+local function format_diagnostic_line(diagnostic, max_loc_width, filepath)
+   local line = diagnostic.range.start.line + 1
+   local col = diagnostic.range.start.character + 1
+   local loc = format_location(diagnostic)
+   local uri = string.format("file://%s#%d:%d", filepath, line, col)
+   local linked_loc = hyperlink(loc, uri)
+   local loc_padding = string.rep(" ", max_loc_width - #loc)
+
+   local severity_name = SEVERITY_NAMES[diagnostic.severity]
    local severity_color = SEVERITY_COLORS[diagnostic.severity]
-   local msg = diagnostic.message
+   local severity_prefix = colorize("[" .. severity_name .. "]", severity_color)
+   local continuation_indent =
+      string.rep(" ", 2 + max_loc_width + 1 + #severity_name + 2 + 1 + #diagnostic.code + 2)
+
+   local msg = diagnostic.message:gsub("\n", "\n" .. continuation_indent)
+   if diagnostic.severity == SEVERITY.Hint then
+      msg = colorize(msg, severity_color)
+   end
 
    return string.format(
-      "%s%s %s%s %s",
-      loc,
-      colon,
+      "  %s%s %s %s: %s",
+      linked_loc,
+      loc_padding,
+      severity_prefix,
       colorize(diagnostic.code, severity_color),
-      colon,
-      diagnostic.severity == SEVERITY.Hint and colorize(msg, severity_color) or msg
+      msg
    )
 end
 
@@ -220,7 +260,7 @@ end
 --- Compare two diagnostics based on their position and severity.
 --- @param x Diagnostic
 --- @param y Diagnostic
---- @return boolean Returns
+--- @return boolean true if x should sort before y
 function llscheck.compare_diagnostics(x, y)
    local x_line, y_line = x.range.start.line, y.range.start.line
    if x_line ~= y_line then
@@ -283,24 +323,30 @@ end
 function llscheck.generate_report(diagnosis)
    local total_stats = { total = 0, files = 0 }
    local lines = {}
-
-   -- Calculate target summary column for alignment
+   local file_paths = {}
    local max_filename_length = 0
    for uri in pairs(diagnosis) do
-      local filepath = path.relpath(llscheck.uri_to_path(uri))
-      max_filename_length = math.max(max_filename_length, #filepath + 1)
+      local abspath = llscheck.uri_to_path(uri)
+      local relpath = path.relpath(abspath)
+      file_paths[uri] = { abspath = abspath, relpath = relpath }
+      max_filename_length = math.max(max_filename_length, #relpath + 1)
    end
-   local target_column = math.min(max_filename_length + 5, 50)
+   local target_column = math.min(max_filename_length + 5, MAX_SUMMARY_COLUMN)
 
-   -- Generate report lines
    for uri, diagnostics in tablex.sort(diagnosis) do
-      local filepath = path.relpath(llscheck.uri_to_path(uri))
+      local abspath = file_paths[uri].abspath
+      local filepath = file_paths[uri].relpath
       total_stats.files = total_stats.files + 1
 
       local file_stats = {}
       local diagnostic_lines = {}
+      local max_loc_width = 0
+      for _, diagnostic in ipairs(diagnostics) do
+         max_loc_width = math.max(max_loc_width, #format_location(diagnostic))
+      end
+
       for _, diagnostic in tablex.sortv(diagnostics, llscheck.compare_diagnostics) do
-         table.insert(diagnostic_lines, format_diagnostic_line(filepath, diagnostic))
+         table.insert(diagnostic_lines, format_diagnostic_line(diagnostic, max_loc_width, abspath))
          file_stats[diagnostic.severity] = (file_stats[diagnostic.severity] or 0) + 1
 
          total_stats[diagnostic.severity] = (total_stats[diagnostic.severity] or 0) + 1
@@ -308,9 +354,11 @@ function llscheck.generate_report(diagnosis)
       end
 
       local padding = string.rep(" ", target_column - #filepath - 1)
+      local file_uri = "file://" .. abspath
+      local linked_filepath = hyperlink(colorize(filepath, "blue"), file_uri)
       local header = string.format(
          "\n%s:%s%s\n",
-         colorize(filepath, "underline blue"),
+         linked_filepath,
          padding,
          table.concat(get_colored_severities(file_stats), " / ")
       )
@@ -321,6 +369,9 @@ function llscheck.generate_report(diagnosis)
       end
    end
 
+   if total_stats.total > 0 then
+      table.insert(lines, "")
+   end
    table.insert(lines, generate_summary(total_stats))
    return table.concat(lines, "\n"), total_stats
 end

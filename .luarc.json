@@ -1,14 +1,15 @@
 {
   "$schema": "https://raw.githubusercontent.com/sumneko/vscode-lua/master/setting/schema.json",
   "runtime.version": "Lua 5.1",
-  "indent_style": "space",
-  "indent_size": "3",
-  "workspace.ignoreDir": [".vscode", "dist"],
+  "workspace.ignoreDir": [".vscode", "examples/"],
   "workspace.checkThirdParty": false,
   "workspace.library": [
     "${3rd}/luassert/library",
     "${3rd}/busted/library",
     "${addons}/argparse/module/library",
     "${addons}/penlight/module/library"
-  ]
+  ],
+  "diagnostics.neededFileStatus": {
+    "codestyle-check": "None"
+  }
 }
