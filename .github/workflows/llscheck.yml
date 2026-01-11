@@ -38,12 +38,12 @@ jobs:
         run: brew install lua-language-server
 
       - name: Setup Lua
-        uses: leafo/gh-actions-lua@v10
+        uses: leafo/gh-actions-lua@v11
         with:
           luaVersion: ${{ matrix.luaVersion }}
 
       - name: Setup LuaRocks
-        uses: luarocks/gh-actions-luarocks@v5
+        uses: luarocks/gh-actions-luarocks@v6
 
       - name: Install dependencies
         run: luarocks install --deps-only llscheck-dev-1.rockspec
