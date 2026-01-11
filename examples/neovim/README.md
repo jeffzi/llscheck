@@ -1,4 +1,5 @@
 # How To Run
+
 ```sh
 VIMRUNTIME="`nvim --clean --headless --cmd 'lua io.write(os.getenv("VIMRUNTIME"))' --cmd 'quit'`" llscheck .
 ```
@@ -10,8 +11,8 @@ If you run the line above
 
 This proves that `llscheck` is working as intended!
 
+## How It Works
 
-# How It Works
 In the [.luarc.json](./.luarc.json) file there is a line called
 `"$VIMRUNTIME/lua"` and it has all of Neovim's [LuaCATS type
 annotations](https://luals.github.io/wiki/annotations). All we need to do to

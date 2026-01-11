@@ -4,14 +4,12 @@
 
 # llscheck
 
-LLSCheck is a command-line utility that leverages the [Lua Language Server](https://luals.github.io)
-for linting and static analysis of Lua code.
+LLSCheck runs [Lua Language Server](https://luals.github.io) diagnostics and formats the results
+for human readers.
 
-It delivers user-friendly reports, enhancing readability compared to raw JSON output. Moreover,
-LLSCheck seamlessly integrates with popular CI tools, i.e the exit code is a failure when the Lua
-Language Server finds issues.
+It returns a non-zero exit code when diagnostics are found, making it easy to use in CI pipelines.
 
-![](demo.png)
+![llscheck demo output](demo.png)
 
 ## CLI
 
@@ -34,7 +32,7 @@ luarocks install llscheck
 llscheck --help
 ```
 
-```
+```text
 Usage: llscheck [-h] [--completion {bash,zsh,fish}]
        [--checklevel {Error,Warning,Information,Hint}]
        [--configpath <configpath>] [<workspace>]
@@ -59,9 +57,21 @@ Options:
 
 See [examples/neovim](examples/neovim/README.md) for using llscheck with Neovim projects
 
+### Programmatic API
+
+LLSCheck can be used as a Lua module:
+
+```lua
+local llscheck = require("llscheck")
+
+local diagnosis = llscheck.check_workspace("src", "Warning", ".luarc.json")
+local report, stats = llscheck.generate_report(diagnosis)
+print(report)
+```
+
 ## Colored output
 
-Colored text output is disabled if any of the following conditions are met:
+LLSCheck disables colored output when:
 
 - llscheck is not run from a terminal (TTY).
 - The [NO_COLOR](https://no-color.org/) environment variable is present and not empty.
@@ -69,14 +79,16 @@ Colored text output is disabled if any of the following conditions are met:
 
 ## Docker
 
-You can also run LLSCheck as a standalone Docker container.
-To build your own, execute the following command from the source directory of this project:
+LLSCheck runs as a Docker container. Build it with:
 
 ```console
 docker build -t llscheck https://github.com/jeffzi/llscheck.git
 ```
 
-Optionally, you can pin the [version of Lua Language Server](<(https://github.com/LuaLS/lua-language-server/releases)>) with `--build-arg LLS_VERSION=3.7.0`.
+Optionally, you can pin the [version of Lua Language Server][lls-releases] with
+`--build-arg LLS_VERSION=3.7.0`.
+
+[lls-releases]: https://github.com/LuaLS/lua-language-server/releases
 
 Once you have a container you can run it with arguments:
 
@@ -85,15 +97,13 @@ Once you have a container you can run it with arguments:
 docker run -v "$(pwd):/data" llscheck --checklevel Information src
 ```
 
-On an Apple Silicon chip M1+, you'll need to add the option `--platform=linux/amd64` to both docker commands.
+On an Apple Silicon chip M1+, you'll need to add the option `--platform=linux/amd64` to both
+docker commands.
 
 ## Version control integration
 
-Lua Language Server must be [installed locally](https://luals.github.io/#other-install)
-and `lua-language-server` must be in your $PATH.
-
-Use [pre-commit](https://pre-commit.com). Once you [have it installed](https://pre-commit.com/#install),
-add this to the `.pre-commit-config.yaml` in your repository:
+Use [pre-commit](https://pre-commit.com). Once [installed](https://pre-commit.com/#install),
+add this to `.pre-commit-config.yaml`:
 
 ```yaml
 repos:

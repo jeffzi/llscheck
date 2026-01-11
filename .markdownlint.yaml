@@ -1,0 +1,13 @@
+# markdownlint configuration
+# https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+
+# Allow 100 character lines, exclude code blocks
+MD013:
+  line_length: 100
+  code_blocks: false
+
+# Allow multiple top-level headings (useful for changelogs, multi-section docs)
+MD025: false
+
+# Allow first line to not be a heading (for badges, frontmatter, etc.)
+MD041: false
