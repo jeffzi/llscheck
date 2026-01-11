@@ -53,6 +53,13 @@ Options:
    --no-color            Do not add color to output.
 ```
 
+> **Note:** LLSCheck operates on workspaces (directories), not individual files.
+>
+> ```bash
+> llscheck examples/demo/           # Correct
+> llscheck examples/demo/init.lua   # Wrong
+> ```
+
 ### Neovim
 
 See [examples/neovim](examples/neovim/README.md) for using llscheck with Neovim projects
