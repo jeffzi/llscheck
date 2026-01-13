@@ -38,7 +38,7 @@ jobs:
         run: brew install lua-language-server
 
       - name: Setup Lua
-        uses: leafo/gh-actions-lua@v11
+        uses: leafo/gh-actions-lua@v12
         with:
           luaVersion: ${{ matrix.luaVersion }}
 
