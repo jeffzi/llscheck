@@ -21,7 +21,7 @@ repos:
         args: ["--markdown-linebreak-ext=md,markdown"]
 
   - repo: https://github.com/JohnnyMorganz/StyLua
-    rev: v2.3.1
+    rev: v2.5.2
     hooks:
       - id: stylua
         exclude: ^examples/
@@ -32,6 +32,6 @@ repos:
       - id: luacheck
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.47.0
+    rev: v0.48.0
     hooks:
       - id: markdownlint
